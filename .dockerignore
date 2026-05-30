@@ -1,0 +1,16 @@
+.env
+.env.*
+data/
+logs/
+.git/
+.gitignore
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+docs/
+tests/
+_verificar_*.py
+_*.log
+README.md

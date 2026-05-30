@@ -1,0 +1,5 @@
+# Runtime — mínimo e explícito (sem framework agêntico).
+aiogram==3.13.1
+httpx==0.27.2
+pydantic==2.9.2
+pydantic-settings==2.5.2
