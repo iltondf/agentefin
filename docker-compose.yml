@@ -1,0 +1,11 @@
+# Apenas para validação/execução local. No Easypanel NÃO se usa este arquivo:
+# lá o build vem do GitHub via Dockerfile e as variáveis vêm da interface.
+services:
+  agente-financeiro:
+    build: .
+    container_name: agente-financeiro
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./data:/app/data
+    # Sem `ports`: o bot só faz conexões de SAÍDA (Telegram + API BRGlobal).
