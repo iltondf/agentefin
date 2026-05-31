@@ -2,6 +2,15 @@
 
 Formato: data — fase — mudança.
 
+## 2026-05-31 — Preparação de deploy direto na VPS (Docker Compose)
+
+- **Easypanel descartado** (licença gratuita limita a 3 projetos) → deploy via
+  **Docker Compose direto na VPS**. Bot por polling: sem porta/domínio/proxy/SSL.
+- `docker-compose.yml` ajustado (serviço `agentefin`, sem ports, sem volumes, stateless,
+  rotação de logs json-file 10MB×3). Novo guia `docs/deploy/DEPLOY_DIRETO_VPS_DOCKER.md`.
+- Scripts `scripts/deploy/vps-docker-{deploy,status,stop}.sh`; `.gitattributes` (LF em `*.sh`).
+- `docs/deploy/easypanel.md` marcado como descontinuado. Sem scheduler, sem Fase 2, sem novas funcionalidades.
+
 ## 2026-05-31 — Homologação real contra PRODUÇÃO (local)
 
 - API Key do agente criada (id 7, `bgf_live_ecffe92489e…`, escopos `read:financeiro,read:extrato`)

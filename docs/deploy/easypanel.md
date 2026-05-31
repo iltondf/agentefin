@@ -1,5 +1,9 @@
 # Deploy — Easypanel (Docker)
 
+> ⚠️ **DESCONTINUADO (2026-05-31).** O agente financeiro **não** usa mais Easypanel
+> (licença gratuita limitada a 3 projetos). Deploy atual: **Docker Compose direto na VPS** —
+> ver [`DEPLOY_DIRETO_VPS_DOCKER.md`](DEPLOY_DIRETO_VPS_DOCKER.md). Mantido só como referência histórica.
+
 Padrão herdado do ecossistema de agentes: build do GitHub via `Dockerfile`,
 processo único, **sem porta de entrada**, variáveis pela interface.
 

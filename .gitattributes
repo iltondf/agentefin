@@ -1,0 +1,2 @@
+# Scripts shell rodam na VPS (Linux) → manter LF (evita shebang quebrado por CRLF).
+*.sh text eol=lf

@@ -52,11 +52,16 @@ e desligada por padrão** (`LLM_ENABLED=false`) — o bot funciona 100% sem LLM.
 
 - [`docs/ESTADO-ATUAL.md`](docs/ESTADO-ATUAL.md) — ponto de entrada / handoff
 - [`docs/arquitetura/`](docs/arquitetura) — decisão inicial + mapa da API
-- [`docs/deploy/easypanel.md`](docs/deploy/easypanel.md) — deploy
+- [`docs/deploy/DEPLOY_DIRETO_VPS_DOCKER.md`](docs/deploy/DEPLOY_DIRETO_VPS_DOCKER.md) — deploy (VPS Docker Compose)
 - [`docs/operacao/runbook.md`](docs/operacao/runbook.md) — operação
 - [`docs/changelog.md`](docs/changelog.md) · [`docs/checkpoints/`](docs/checkpoints)
 
 ## Deploy
 
-Docker no Easypanel (build do GitHub via `Dockerfile`, processo único, sem porta,
-volume `/app/data`, env pela interface). Ver `docs/deploy/easypanel.md`.
+**Docker Compose direto na VPS** (sem Easypanel, sem porta — bot por polling, só
+conexões de saída). Guia: [`docs/deploy/DEPLOY_DIRETO_VPS_DOCKER.md`](docs/deploy/DEPLOY_DIRETO_VPS_DOCKER.md).
+```bash
+git clone https://github.com/iltondf/agentefin.git && cd agentefin
+# criar .env (ver guia), então:
+bash scripts/deploy/vps-docker-deploy.sh
+```

@@ -1,11 +1,16 @@
-# Apenas para validação/execução local. No Easypanel NÃO se usa este arquivo:
-# lá o build vem do GitHub via Dockerfile e as variáveis vêm da interface.
+# Deploy direto na VPS (Docker Compose) — SEM Easypanel, SEM porta, SEM proxy/SSL.
+# O bot usa polling do Telegram → apenas conexões de SAÍDA (Telegram + API BRGlobal).
 services:
-  agente-financeiro:
+  agentefin:
     build: .
-    container_name: agente-financeiro
+    container_name: agentefin
     restart: unless-stopped
     env_file: .env
-    volumes:
-      - ./data:/app/data
-    # Sem `ports`: o bot só faz conexões de SAÍDA (Telegram + API BRGlobal).
+    # Sem `ports`: nada é exposto; nenhuma requisição externa entra.
+    # Sem `volumes`: o agente é stateless (sem SQLite/scheduler no MVP);
+    # os logs vão para stdout → ver com `docker compose logs`.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
