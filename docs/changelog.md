@@ -2,6 +2,18 @@
 
 Formato: data — fase — mudança.
 
+## 2026-05-31 — Planejamento da Secretária Operacional (inbox + rascunhos)
+
+- **Planejamento (sem código/banco/endpoint/deploy).** Captura operacional via Telegram:
+  LLM interpreta → agente cria **rascunho/pendência** → valida → **confirmação humana** →
+  API grava. Nada lançado por "entendimento" da LLM.
+- Auditoria read-only: agent API só **GET**; escopos `write:*` **sem endpoint**; **não há**
+  tabela de inbox/rascunho; escrita só nas rotas humanas (JWT).
+- Veredito: **aprovar com cuidado**, faseado. MVP = **inbox textual**; passo 0 = "mensagem
+  p/ secretária" (zero escrita).
+- Docs: `roadmap/PLANO_SECRETARIA_OPERACIONAL.md`, `arquitetura/INBOX_OPERACIONAL_DESIGN.md`,
+  `seguranca/WRITE_TOOLS_GUARDRAILS.md`; checkpoint 0007. LLM/escrita **não** ativadas.
+
 ## 2026-05-31 — Planejamento da Fase 2 (LLM como seletor de tools read-only)
 
 - **Planejamento (sem código, sem ativar LLM).** Conceito: LLM apenas interpreta a mensagem

@@ -57,5 +57,8 @@ validar `/whoami`. Atualizar após `git push`: opção **3**. Ver `OPERADOR_VPS_
 - **Fase 2 (LLM como SELETOR DE TOOLS read-only) — PLANEJADA** (não implementada, LLM
   desligada): ver `docs/roadmap/PLANO_LLM_FASE_2.md`, `docs/arquitetura/LLM_TOOLS_DESIGN.md`,
   `docs/seguranca/LLM_GUARDRAILS.md`. Próximo: Fase 2.1 (registry de tools) só após aprovação.
+- **Secretária Operacional (inbox + rascunhos c/ confirmação) — PLANEJADA** (não implementada):
+  ver `docs/roadmap/PLANO_SECRETARIA_OPERACIONAL.md`, `docs/arquitetura/INBOX_OPERACIONAL_DESIGN.md`,
+  `docs/seguranca/WRITE_TOOLS_GUARDRAILS.md`. Veredito: **aprovar com cuidado, faseado**; MVP = inbox textual.
 - Roadmap (outros): resumos automáticos (scheduler — **não ativar sem decisão**),
   contas a receber, write com confirmação humana — exige endpoints no BRGlobal.
