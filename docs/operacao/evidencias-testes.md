@@ -96,3 +96,27 @@ GET /api/agent/v1/whoami     → 200  ✅  (environment=production; prefixo bgf_
 > - O bot (`Brglobal_financeiro_bot`) está rodando **LOCALMENTE** (`python -m main` nesta máquina) — **NÃO em produção**.
 > - **Pendência:** deploy no **Easypanel** (ver `docs/deploy/easypanel.md`).
 > - ⚠️ **Alerta de segurança:** `TELEGRAM_BOT_TOKEN` e `BRGLOBAL_API_KEY` apareceram em texto no chat de desenvolvimento — **ROTACIONAR ambos** (BotFather `/revoke`; `agente:revoke-key` + gerar nova) antes/depois de subir.
+
+## 7. Deploy real na VPS via Docker Compose (2026-05-31)
+
+- **Data/hora:** 2026-05-31, ~18:41 BRT.
+- **Servidor/VPS:** `root@srv822821` (VPS Hostinger). Projeto em `~/agentefin`.
+- **Método:** Docker Compose **direto na VPS** (`scripts/ops/agentefin-vps.sh` → opção 3),
+  **sem Easypanel**. Motivo: Easypanel gratuito limitado a **3 projetos**.
+- **Sem porta exposta** (compose sem `ports`); bot por **Telegram polling** (só conexões de saída).
+- **Build/up:** imagem `agentefin-agentefin` construída; container **`agentefin` `Up`**,
+  `COMMAND "python -m main"`, sem portas.
+- **bot_start:** confirmado — o bot responde no Telegram (polling ativo) contra
+  `https://lixo.brglobal.com.br/api/agent/v1`, com `LLM_ENABLED=false` e sem scheduler.
+- **Bot:** `brglobalcontas_bot` (token **rotacionado**, novo). Whitelist `ALLOWED_USER_IDS=8646895490`.
+
+**Comandos Telegram:**
+
+| Comando | Resultado |
+|---|---|
+| `/start` (= `/ajuda`) | menu/ajuda exibido ✅ (ao vivo na VPS) |
+| `/painel` | PAINEL OPERACIONAL 2026-05-31: Vencidas 7 — R$ 19.420,23; Hoje 0; Próx. 7 dias 1 — R$ 529,04; Críticas 0; sem código de pagamento 13; Conciliação 234/75; sugestões 19 ✅ (ao vivo na VPS) |
+| `/whoami` `/hoje` `/vencidas` `/criticas` `/proximos7` `/resumo` | disponíveis; mesmo data-path/chave de produção já validado na homologação (§6) |
+
+- **Resumo:** agente **em produção na VPS**, respondendo com **dados reais** (consistentes com §6 e com o resumo do cron das 05:00).
+- **Segredos:** não registrados nos docs (token/chave só no `.env` da VPS, gitignored).

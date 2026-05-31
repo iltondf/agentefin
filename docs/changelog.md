@@ -2,6 +2,15 @@
 
 Formato: data — fase — mudança.
 
+## 2026-05-31 — Deploy real na VPS via Docker Compose e operador interativo documentado
+
+- **Agente EM PRODUÇÃO na VPS** (`root@srv822821`, `~/agentefin`) via Docker Compose
+  (commit `9ca3e3e`); container `agentefin` `Up`. Easypanel descartado (limite de 3 projetos).
+- Validado ao vivo no Telegram (`brglobalcontas_bot`, token+chave **rotacionados**):
+  `/start` e `/painel` com **dados reais** (Vencidas 7 · R$ 19.420,23 · Conciliação 234/75).
+- Evidências em `docs/operacao/evidencias-testes.md` §7; checkpoint 0005; manuais de deploy/operador atualizados.
+- `LLM_ENABLED=false`, sem scheduler, sem Fase 2, sem novas funcionalidades.
+
 ## 2026-05-31 — Operador interativo da VPS (assistente de configuração)
 
 - Novo `scripts/ops/agentefin-vps.sh`: menu (verificar ambiente, **configurar `.env`

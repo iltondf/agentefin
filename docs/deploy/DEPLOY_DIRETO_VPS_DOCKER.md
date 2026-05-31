@@ -108,3 +108,17 @@ BRGlobal (ou “Nenhuma conta… ✅” quando a janela está vazia).
 | `BRGLOBAL_API_KEY` | *(nova bgf_live_…)* | segredo — só no `.env` |
 | `TZ` | `America/Sao_Paulo` | — |
 | `LLM_ENABLED` | `false` | LLM desligada |
+
+## Comandos úteis (na VPS, em `~/agentefin`)
+```bash
+docker compose ps              # status do container
+docker compose logs -f         # logs ao vivo (Ctrl+C sai)
+docker compose restart         # reiniciar
+docker compose down            # parar
+```
+
+## Fluxo de atualização (resumo)
+1. No PC: ajustar código/docs → `git push origin main`.
+2. `ssh root@SEU_HOST` → `cd ~/agentefin`.
+3. `bash scripts/ops/agentefin-vps.sh`.
+4. Opção **3** (deploy/update) → `git pull --ff-only` + `build` + `up -d`.

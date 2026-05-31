@@ -2,20 +2,31 @@
 
 > Leia primeiro ao continuar. A documentação é a fonte da verdade. Atualizado em 2026-05-31.
 
+## Status: 🟢 EM PRODUÇÃO NA VPS
+
+- **Deploy:** Docker Compose **direto na VPS** (`root@srv822821`, `~/agentefin`), commit `9ca3e3e`.
+- **Easypanel:** **descartado** para este agente (licença gratuita limita a 3 projetos).
+- **Container VPS:** `agentefin` **ativo** (`python -m main`, sem portas).
+- **Bot local:** **parado** (0 instâncias).
+- **LLM:** **desativada** (`LLM_ENABLED=false`).
+- **Scheduler:** **inexistente**.
+- **Fase atual:** **MVP leitura** por comandos Telegram.
+- **Próxima fase:** somente **após validação operacional** e decisão explícita.
+
 ## O que é
 
 `C:\claude sistemas\agente_financeiro` — bot de Telegram **somente leitura** que
 consulta o **BRGlobal Financeiro** via `/api/agent/v1`. Stack: Python 3.12+,
 aiogram, httpx, pydantic-settings. Repo: `https://github.com/iltondf/agentefin.git`.
+Bot em produção: `brglobalcontas_bot`.
 
 ## Para recuperar contexto, leia (nesta ordem)
 
 1. `docs/arquitetura/DECISAO_ARQUITETURAL_INICIAL.md`
-2. `docs/arquitetura/API_BRGLOBAL.md`
-3. `docs/arquitetura/visao-geral.md`
+2. `docs/arquitetura/API_BRGLOBAL.md` + `docs/arquitetura/visao-geral.md`
+3. `docs/deploy/DEPLOY_DIRETO_VPS_DOCKER.md` + `docs/deploy/OPERADOR_VPS_INTERATIVO.md`
 4. `docs/operacao/runbook.md` + `docs/operacao/evidencias-testes.md`
-5. `docs/deploy/DEPLOY_DIRETO_VPS_DOCKER.md`  *(Easypanel descartado)*
-6. `docs/changelog.md` + `docs/checkpoints/`
+5. `docs/changelog.md` + `docs/checkpoints/`
 
 ## Governança (inegociável)
 
@@ -26,32 +37,23 @@ aiogram, httpx, pydantic-settings. Repo: `https://github.com/iltondf/agentefin.g
 - **Determinístico, 0-token-first.** LLM opcional e **desligada por padrão**.
 - Sem framework agêntico / engine / orquestração. Sem Hermes. Scheduler **não ativado**.
 
-## Estado
+## Operação (na VPS)
 
-- **Implementado:** cliente HTTP robusto, command router (`/hoje /vencidas
-  /criticas /proximos7 /painel /resumo /whoami /ajuda`), formatters, middleware
-  (whitelist + rate limit), LLM opcional, Docker.
-- **Testado:** 26 testes (unit + integração over-the-wire) **passando**.
-- **Homologado em PRODUÇÃO (2026-05-31):** `/whoami` → **200** e **dados reais** nos
-  comandos contra `https://lixo.brglobal.com.br/api/agent/v1` (chave `bgf_live_ecffe92489e…`,
-  id 7). `/vencidas` = 7 contas, R$ 19.420,23. Ver `docs/checkpoints/` e `docs/operacao/evidencias-testes.md`.
-- **Bot local PARADO** (0 instâncias). **Deploy planejado: Docker Compose direto na VPS**
-  (Easypanel descartado por limite de 3 projetos) — ver `docs/deploy/DEPLOY_DIRETO_VPS_DOCKER.md`.
-- **Git:** `origin/main` atualizado (push feito). Working tree limpo.
+`bash scripts/ops/agentefin-vps.sh` — menu: verificar ambiente, **configurar `.env`**
+(trocar token/chave/LLM sem editor), deploy/update, status, logs, reiniciar, parar,
+validar `/whoami`. Atualizar após `git push`: opção **3**. Ver `OPERADOR_VPS_INTERATIVO.md`.
 
 ## Configuração
 
-Ver `.env.example`. Mínimo: `TELEGRAM_BOT_TOKEN`, `ALLOWED_USER_IDS`,
-`BRGLOBAL_API_BASE_URL`, `BRGLOBAL_API_KEY`, `TZ`, `LLM_ENABLED`. A config real fica
-em `.env` (na VPS) — **gitignored**, nunca versionar.
+`.env` (na VPS, **gitignored**). Mínimo: `TELEGRAM_BOT_TOKEN`, `ALLOWED_USER_IDS`,
+`BRGLOBAL_API_BASE_URL`, `BRGLOBAL_API_KEY`, `TZ`, `LLM_ENABLED`. Modelo: `.env.example`.
 
 ## Pendências / próximos passos
 
-- **Deploy direto na VPS (Docker Compose)** — guia `docs/deploy/DEPLOY_DIRETO_VPS_DOCKER.md`;
-  operação por **menu** `scripts/ops/agentefin-vps.sh` (`docs/deploy/OPERADOR_VPS_INTERATIVO.md`).
-  Etapas: (1) rotacionar `TELEGRAM_BOT_TOKEN` + gerar nova `BRGLOBAL_API_KEY`;
-  (2) criar `.env` na VPS (opção 2 do menu); (3) deploy (opção 3 ou `vps-docker-deploy.sh`);
-  (4) testar 8 comandos; (5) revogar chave antiga id 7 (`agente:revoke-key 7`).
-- ⚠️ **Segurança:** token e chave atuais apareceram no chat → usar **novos** no deploy.
+- **Revogar a chave antiga id 7** (uma nova `bgf_live_` foi criada) — quando decidir
+  (`agente:revoke-key 7` no host do financeiro).
+- (Opcional) Apagar o bot antigo `Brglobal_financeiro_bot` no BotFather.
+- ⚠️ Token/chave **atuais NÃO** apareceram no chat (foram rotacionados na VPS) — os que
+  vazaram (`8431551432…`, `bgf_live_ecffe92489e…`) não estão em uso.
 - Roadmap (Fase 2+): resumos automáticos (scheduler — **não ativar sem decisão**),
   contas a receber, write com confirmação humana — exige endpoints no BRGlobal.

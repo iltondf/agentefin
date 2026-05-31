@@ -7,6 +7,15 @@ arquivos à mão. Roda na VPS por SSH.
 bash scripts/ops/agentefin-vps.sh
 ```
 
+## Acesso à VPS e localização do projeto
+```bash
+ssh root@SEU_HOST            # ex.: ssh root@srv822821
+cd ~/agentefin               # projeto clonado em /root/agentefin
+bash scripts/ops/agentefin-vps.sh
+```
+- Repositório: `https://github.com/iltondf/agentefin.git` (clonado em `~/agentefin`).
+- O `.env` (segredos) fica em `~/agentefin/.env` — **nunca** versionado.
+
 ## Menu
 ```
 1) Verificar ambiente
