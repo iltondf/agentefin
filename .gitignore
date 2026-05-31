@@ -1,5 +1,7 @@
 # Segredos / estado — NUNCA versionar
 .env
+.env.*
+!.env.example
 data/
 logs/
 
