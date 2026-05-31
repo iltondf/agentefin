@@ -107,3 +107,17 @@ async def test_proximos_passes_dias_param():
     await _client(h).contas_pagar_proximos(7)
     assert "dias=7" in seen["url"]
     assert "proximos-dias" in seen["url"]
+
+
+async def test_404_not_retried():
+    state = {"n": 0}
+
+    def h(_req):
+        state["n"] += 1
+        return httpx.Response(404, json={})
+
+    with pytest.raises(FinanceAPIError) as ei:
+        await _client(h, retries=2).contas_pagar_hoje()
+    assert ei.value.kind == "http"
+    assert ei.value.status == 404
+    assert state["n"] == 1  # 404 não deve ser retentado

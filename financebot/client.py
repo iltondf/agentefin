@@ -18,9 +18,6 @@ import httpx
 
 from financebot.logging_setup import log_event
 
-# Tipos de falha possíveis (usados para degradação amigável no Telegram).
-_TRANSIENT = {"rate_limit", "timeout", "http", "network"}
-
 
 @dataclass
 class FinanceAPIError(Exception):
@@ -90,7 +87,7 @@ class FinanceClient:
                 if err is None:
                     return self._unwrap(r)
                 last = err
-                if err.kind in _TRANSIENT and attempt <= self._retries:
+                if self._is_retryable(err) and attempt <= self._retries:
                     await self._backoff(attempt)
                     continue
                 raise err
@@ -111,6 +108,14 @@ class FinanceClient:
     @staticmethod
     async def _backoff(attempt: int) -> None:
         await asyncio.sleep(min(2 ** (attempt - 1), 4))
+
+    @staticmethod
+    def _is_retryable(err: FinanceAPIError) -> bool:
+        """Retry só em falhas transitórias: rede/timeout/rate-limit e 5xx.
+        4xx (auth/scope/404) NÃO são retentados."""
+        if err.kind in ("rate_limit", "timeout", "network"):
+            return True
+        return err.kind == "http" and (err.status or 0) >= 500
 
     @staticmethod
     def _classify(r: httpx.Response) -> FinanceAPIError | None:

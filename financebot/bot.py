@@ -24,7 +24,7 @@ class AccessMiddleware(BaseMiddleware):
         self._hits: dict[int, deque] = defaultdict(deque)
 
     async def __call__(self, handler, event: TelegramObject, data: dict):
-        user = data.get("event_from_user")
+        user = data.get("event_from_user") or getattr(event, "from_user", None)
         uid = user.id if user else None
         if uid is None or uid not in settings.allowed_ids:
             log_event("acesso_negado", uid=uid, level="warning")

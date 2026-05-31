@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -42,6 +43,15 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     log_path: str = "logs/app.log"
     tz: str = "America/Sao_Paulo"
+
+    @field_validator("default_conta_bancaria_id", mode="before")
+    @classmethod
+    def _empty_to_none(cls, v):
+        """Trata string vazia (ex.: `.env.example` copiado as-is) como None,
+        evitando ValidationError no boot para o campo opcional int."""
+        if v is None or (isinstance(v, str) and v.strip() == ""):
+            return None
+        return v
 
     @property
     def allowed_ids(self) -> set[int]:
