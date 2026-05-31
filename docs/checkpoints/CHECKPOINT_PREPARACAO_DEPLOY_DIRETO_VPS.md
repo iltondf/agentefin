@@ -27,4 +27,4 @@
 2. **Criar `.env` na VPS** (com as credenciais novas).
 3. **Subir o container** (`scripts/deploy/vps-docker-deploy.sh`).
 4. **Testar no Telegram** os 8 comandos.
-5. **Revogar a chave antiga (id 7)** após validar: `pnpm --filter database agente:revoke-key 7`.
+5. **Opcional futuro:** avaliar rotação/revogação da chave antiga por higiene de segurança.

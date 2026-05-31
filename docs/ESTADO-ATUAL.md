@@ -50,8 +50,7 @@ validar `/whoami`. Atualizar após `git push`: opção **3**. Ver `OPERADOR_VPS_
 
 ## Pendências / próximos passos
 
-- **Revogar a chave antiga id 7** (uma nova `bgf_live_` foi criada) — quando decidir
-  (`agente:revoke-key 7` no host do financeiro).
+- **Opcional futuro:** avaliar rotação/revogação da chave antiga por higiene de segurança.
 - (Opcional) Apagar o bot antigo `Brglobal_financeiro_bot` no BotFather.
 - ⚠️ Token/chave **atuais NÃO** apareceram no chat (foram rotacionados na VPS) — os que
   vazaram (`8431551432…`, `bgf_live_ecffe92489e…`) não estão em uso.

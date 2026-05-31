@@ -50,7 +50,7 @@ Sem porta, sem domínio, sem proxy, sem SSL. Stateless (sem volumes; logs em std
 Fase: **MVP leitura por comandos**.
 
 ## Pendências futuras
-- Revogar a **chave antiga id 7** (uma nova foi criada) — quando o operador decidir.
+- **Opcional futuro:** avaliar rotação/revogação da chave antiga por higiene de segurança.
 - (Opcional) Apagar o bot antigo `Brglobal_financeiro_bot` no BotFather.
 - Fase 2 (resumos automáticos / contas a receber / write com confirmação) — **só após decisão**.
 

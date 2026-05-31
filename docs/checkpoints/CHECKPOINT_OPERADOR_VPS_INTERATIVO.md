@@ -25,5 +25,6 @@ para operar o container (deploy/update, status, logs, restart, stop, validar API
   LLM futuro, deploy, logs, restart, parar, validar, **rollback via backup**).
 
 ## Pendências (inalteradas)
-Rotacionar token+chave, criar `.env` na VPS (via opção 2), subir, testar 8 comandos,
-revogar chave antiga id 7. Deploy real **não** executado.
+Rotacionar token+chave, criar `.env` na VPS (via opção 2), subir, testar 8 comandos.
+Deploy real **não** executado. (Opcional futuro: avaliar rotação/revogação da chave
+antiga por higiene de segurança.)
