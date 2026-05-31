@@ -1,6 +1,7 @@
 # Evidências de Testes
 
-Data: 2026-05-30. Ambiente: Windows, Python 3.13.5 (venv), Node 22 / pnpm 10.
+Data: 2026-05-30 (suíte/Docker) · **homologação real em PRODUÇÃO: 2026-05-31**.
+Ambiente: Windows, Python 3.13.5 (venv), Node 22 / pnpm 10.
 
 ## 1. Suíte automatizada (pytest)
 
@@ -63,9 +64,35 @@ docker run --rm agente-financeiro:audit        → "TELEGRAM_BOT_TOKEN ausente �
                                                   exit code 0
 ```
 
-## 6. Não validado (restrição da tarefa)
+## 6. Homologação REAL contra PRODUÇÃO (2026-05-31)
 
-Resposta **200 autenticada com dados reais** exige API Key (`bgf_*`), cujo registro
-é um **INSERT** (proibido — BRGlobal read-only). Passo do operador: gerar a chave
-(`pnpm agente:create-key`), definir `BRGLOBAL_API_KEY`/`BRGLOBAL_API_BASE_URL`,
-rodar `/whoami`.
+- **Data/hora:** 2026-05-31, ~09:18 BRT (12:16–12:18 UTC).
+- **URL:** `https://lixo.brglobal.com.br/api/agent/v1` (produção; TLS ok com AVG desligado).
+- **Chave:** `bgf_live_ecffe92489e…` (id 7, "agentefinanceiro", escopos `read:financeiro, read:extrato`).
+
+```
+GET /health                  → 200 {"status":"ok","db":"ok"}
+GET /api/agent/v1/whoami     → 200  ✅  (environment=production; prefixo bgf_live_ecffe92489e;
+                                          escopos read:financeiro, read:extrato)
+```
+
+**Comandos testados (data-path real, via `_verificar_homologacao.py`):**
+
+| Comando | Resultado resumido |
+|---|---|
+| `/whoami` | **200** — chave agentefinanceiro, escopos read:financeiro,read:extrato |
+| `/hoje` | Nenhuma conta vencendo hoje ✅ |
+| `/vencidas` | **7 contas — total R$ 19.420,23** (DARF R$ 4.668,98; Prefeitura R$ 601,58; DARF Previdenciário R$ 5.355,63; FGTS R$ 2.412,51; Contabilidade R$ 5.541,55; Condor R$ 180,22 e R$ 659,76) |
+| `/criticas` | Nenhuma crítica ✅ |
+| `/proximos7` | Nenhuma nos próximos 7 dias ✅ |
+| `/resumo` | Vencidas 7 · R$ 19.420,23 · sem código de pagamento: 13 |
+| `/painel` | Vencidas 7 · R$ 19.420,23 · Conciliação: matches fortes 234, prováveis 75, sugestões pendentes 19 |
+| `/ajuda` | Texto local (não chama API) ✅ |
+
+- **Dados reais confirmados:** os valores batem com o resumo automático das **05:00** do script de cron (mesma fonte de verdade). ✅
+- **`/whoami` 200 confirmado.** ✅
+
+> **Observações:**
+> - O bot (`Brglobal_financeiro_bot`) está rodando **LOCALMENTE** (`python -m main` nesta máquina) — **NÃO em produção**.
+> - **Pendência:** deploy no **Easypanel** (ver `docs/deploy/easypanel.md`).
+> - ⚠️ **Alerta de segurança:** `TELEGRAM_BOT_TOKEN` e `BRGLOBAL_API_KEY` apareceram em texto no chat de desenvolvimento — **ROTACIONAR ambos** (BotFather `/revoke`; `agente:revoke-key` + gerar nova) antes/depois de subir.
