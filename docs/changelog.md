@@ -2,6 +2,14 @@
 
 Formato: data — fase — mudança.
 
+## 2026-05-31 — Operador interativo da VPS (assistente de configuração)
+
+- Novo `scripts/ops/agentefin-vps.sh`: menu (verificar ambiente, **configurar `.env`
+  por assistente**, deploy/update, status, logs, restart, parar, validar `/whoami`, checklist).
+- Opção 2 troca token/chave/LLM **sem editor**: backup `.env.bak.*`, segredos ocultos e
+  mascarados, `chmod 600`, validações. `bash -n` OK. LLM segue **futura** (bot inalterado).
+- Doc `docs/deploy/OPERADOR_VPS_INTERATIVO.md` + checkpoint 0004. Sem scheduler, sem Fase 2.
+
 ## 2026-05-31 — Preparação de deploy direto na VPS (Docker Compose)
 
 - **Easypanel descartado** (licença gratuita limita a 3 projetos) → deploy via

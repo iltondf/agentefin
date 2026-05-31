@@ -7,6 +7,10 @@ VPS → Docker Compose → container `agentefin` → Telegram (polling)
 
 > Bot **somente leitura**, **polling** do Telegram. **Sem porta, sem domínio, sem proxy, sem SSL.**
 > Sem scheduler, sem Fase 2, sem novas funcionalidades.
+>
+> **Forma recomendada de operar:** `bash scripts/ops/agentefin-vps.sh` (menu interativo —
+> configura `.env`, deploy/update, logs, restart, validação). Ver `OPERADOR_VPS_INTERATIVO.md`.
+> Os passos manuais abaixo continuam válidos como referência.
 
 ## 1. Por que não usar Easypanel
 A licença gratuita do Easypanel está limitada a **3 projetos** (já em uso). Para não

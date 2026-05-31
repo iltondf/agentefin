@@ -47,10 +47,11 @@ em `.env` (na VPS) — **gitignored**, nunca versionar.
 
 ## Pendências / próximos passos
 
-- **Deploy direto na VPS (Docker Compose)** — `docs/deploy/DEPLOY_DIRETO_VPS_DOCKER.md`.
+- **Deploy direto na VPS (Docker Compose)** — guia `docs/deploy/DEPLOY_DIRETO_VPS_DOCKER.md`;
+  operação por **menu** `scripts/ops/agentefin-vps.sh` (`docs/deploy/OPERADOR_VPS_INTERATIVO.md`).
   Etapas: (1) rotacionar `TELEGRAM_BOT_TOKEN` + gerar nova `BRGLOBAL_API_KEY`;
-  (2) criar `.env` na VPS; (3) `scripts/deploy/vps-docker-deploy.sh`; (4) testar 8 comandos;
-  (5) revogar chave antiga id 7 (`agente:revoke-key 7`).
+  (2) criar `.env` na VPS (opção 2 do menu); (3) deploy (opção 3 ou `vps-docker-deploy.sh`);
+  (4) testar 8 comandos; (5) revogar chave antiga id 7 (`agente:revoke-key 7`).
 - ⚠️ **Segurança:** token e chave atuais apareceram no chat → usar **novos** no deploy.
 - Roadmap (Fase 2+): resumos automáticos (scheduler — **não ativar sem decisão**),
   contas a receber, write com confirmação humana — exige endpoints no BRGlobal.
