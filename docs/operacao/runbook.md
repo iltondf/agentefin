@@ -13,7 +13,7 @@ python -m main
 ## Testes
 ```powershell
 pip install -r requirements-dev.txt
-python -m pytest -q                 # 24 testes
+python -m pytest -q                 # 26 testes
 ```
 
 ## Smoke de conexão real (descartável)

@@ -6,15 +6,15 @@ Data: 2026-05-30. Ambiente: Windows, Python 3.13.5 (venv), Node 22 / pnpm 10.
 
 Comando: `.\.venv\Scripts\python.exe -m pytest -q`
 
-Resultado: **24 passed**.
+Resultado: **26 passed**.
 
 Cobertura:
-- `test_config.py` — parse de `ALLOWED_USER_IDS`; LLM off por padrão.
+- `test_config.py` — parse de `ALLOWED_USER_IDS`; LLM off por padrão; **`DEFAULT_CONTA_BANCARIA_ID` vazio → None** (regressão da auditoria).
 - `test_formatters.py` — BRL/data BR; listas (vazia/cheia); críticas com
   recomendação; resumo; painel com `caixa=null` + `_observacoes`; whoami.
 - `test_client.py` — desembrulho do envelope; header Bearer; 401→auth, 403→scope,
   503→disabled; **retry 429→200**; **500 esgota retries** (1+1); parse de JSON
-  inválido; parâmetro `dias` em proximos-dias. (Backoff neutralizado no `conftest`.)
+  inválido; parâmetro `dias`; **404 não é retentado** (regressão). (Backoff neutralizado no `conftest`.)
 - `test_integration.py` — **over-the-wire real**: stub HTTP local com o mesmo
   envelope da API → cliente → formatter (`Energia SA`, `R$ 150,00`).
 - `test_middleware.py` — whitelist nega desconhecido; permite listado; rate limit.
@@ -53,7 +53,17 @@ Degradacao OK — erro tratado: kind=network status=None
 Mensagem ao usuario: 📡 Não consegui falar com a API financeira agora.
 ```
 
-## 5. Não validado (restrição da tarefa)
+## 5. Docker (auditoria final)
+
+```
+docker build -t agente-financeiro:audit .     → sucesso (imagem ~217 MB)
+docker run --rm agente-financeiro:audit        → "TELEGRAM_BOT_TOKEN ausente —
+                                                  encerrando (safe boot)." + log
+                                                  WARNING telegram_nao_configurado
+                                                  exit code 0
+```
+
+## 6. Não validado (restrição da tarefa)
 
 Resposta **200 autenticada com dados reais** exige API Key (`bgf_*`), cujo registro
 é um **INSERT** (proibido — BRGlobal read-only). Passo do operador: gerar a chave

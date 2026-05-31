@@ -31,7 +31,7 @@ aiogram, httpx, pydantic-settings. Repo: `https://github.com/iltondf/agentefin.g
 - **Implementado:** cliente HTTP robusto, command router (`/hoje /vencidas
   /criticas /proximos7 /painel /resumo /whoami /ajuda`), formatters, middleware
   (whitelist + rate limit), LLM opcional, Docker.
-- **Testado:** 24 testes (unit + integração over-the-wire) **passando**. Evidência
+- **Testado:** 26 testes (unit + integração over-the-wire) **passando**. Evidência
   real: `/health` 200 e contrato **401** da API de agentes (28-05) — cliente
   degrada corretamente. Ver `docs/operacao/evidencias-testes.md`.
 - **Containerizado:** `Dockerfile` + `docker-compose.yml` + `.dockerignore`.

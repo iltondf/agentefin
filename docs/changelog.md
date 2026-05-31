@@ -2,6 +2,14 @@
 
 Formato: data — fase — mudança.
 
+## 2026-05-30 — Auditoria final (correções de bugs)
+
+- **Boot com `.env.example` as-is:** `DEFAULT_CONTA_BANCARIA_ID` vazio agora vira
+  `None` (field_validator) — antes lançava `ValidationError` no import.
+- **Cliente HTTP:** `404` não é mais retentado (retry só em 5xx/rede/timeout/rate-limit).
+- **`AccessMiddleware`:** fallback `event.from_user` (robustez).
+- +2 testes de regressão → **26 testes**. `docker build` + `docker run` (safe boot) validados.
+
 ## 2026-05-30 — Implementação inicial (MVP leitura)
 
 - **ETAPA 0** Auditoria dos projetos de referência; resolvido o erro
