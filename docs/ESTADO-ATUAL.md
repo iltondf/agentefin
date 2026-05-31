@@ -54,5 +54,8 @@ validar `/whoami`. Atualizar após `git push`: opção **3**. Ver `OPERADOR_VPS_
 - (Opcional) Apagar o bot antigo `Brglobal_financeiro_bot` no BotFather.
 - ⚠️ Token/chave **atuais NÃO** apareceram no chat (foram rotacionados na VPS) — os que
   vazaram (`8431551432…`, `bgf_live_ecffe92489e…`) não estão em uso.
-- Roadmap (Fase 2+): resumos automáticos (scheduler — **não ativar sem decisão**),
+- **Fase 2 (LLM como SELETOR DE TOOLS read-only) — PLANEJADA** (não implementada, LLM
+  desligada): ver `docs/roadmap/PLANO_LLM_FASE_2.md`, `docs/arquitetura/LLM_TOOLS_DESIGN.md`,
+  `docs/seguranca/LLM_GUARDRAILS.md`. Próximo: Fase 2.1 (registry de tools) só após aprovação.
+- Roadmap (outros): resumos automáticos (scheduler — **não ativar sem decisão**),
   contas a receber, write com confirmação humana — exige endpoints no BRGlobal.

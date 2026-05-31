@@ -2,6 +2,16 @@
 
 Formato: data — fase — mudança.
 
+## 2026-05-31 — Planejamento da Fase 2 (LLM como seletor de tools read-only)
+
+- **Planejamento (sem código, sem ativar LLM).** Conceito: LLM apenas interpreta a mensagem
+  → escolhe **uma tool permitida** → passa args simples → recebe dados da API → **redige**.
+  Nunca acessa banco/Prisma/SQL/HTTP livre, nunca executa/escreve, nunca calcula valor final.
+- Comandos atuais viram **tools internas** (`consultar_*`); tools compostas futuras
+  (`gerar_resumo_executivo`, `explicar_painel`, `gerar_checklist_prioridades`).
+- Docs: `roadmap/PLANO_LLM_FASE_2.md`, `arquitetura/LLM_TOOLS_DESIGN.md`,
+  `seguranca/LLM_GUARDRAILS.md`; checkpoint 0006. `LLM_ENABLED=false` (inalterado).
+
 ## 2026-05-31 — Deploy real na VPS via Docker Compose e operador interativo documentado
 
 - **Agente EM PRODUÇÃO na VPS** (`root@srv822821`, `~/agentefin`) via Docker Compose
