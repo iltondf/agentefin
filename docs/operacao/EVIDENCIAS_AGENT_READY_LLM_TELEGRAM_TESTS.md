@@ -85,6 +85,11 @@ Validação **STRICT** (param desconhecido → 422 `VALIDACAO`). Resultado no an
 - **Bot atualizado:** tool `buscar_contas_pagar` repassa esses filtros e usa `createdAt desc` por padrão
   (descarta params fora do whitelist p/ evitar 422). Cobertura em `tests/test_tools_registry.py`.
 
+## Fora do escopo de hoje (NÃO validado — não tratar como concluído)
+RH via Telegram (lançamento/vale vs pagamento/diárias/produção), terceirizados (serviço/
+pagamento) e áudio/Whisper **não** foram validados nesta sessão. Próxima fase = **RH**
+(ver `docs/roadmap/ROADMAP_RH_E_WHISPER.md`).
+
 ## Pendências futuras (auditoria)
 - ⚠️ Alerta visual **"Dados de pagamento pendentes"** na conta #932 no web — revisar no fechamento
   (não impede o registro; cadastro de dados bancários do fornecedor é etapa do web).

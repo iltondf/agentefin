@@ -53,6 +53,15 @@ validar `/whoami`. Atualizar após `git push`: opção **3**. Ver `OPERADOR_VPS_
 `.env` (na VPS, **gitignored**). Mínimo: `TELEGRAM_BOT_TOKEN`, `ALLOWED_USER_IDS`,
 `BRGLOBAL_API_BASE_URL`, `BRGLOBAL_API_KEY`, `TZ`, `LLM_ENABLED`. Modelo: `.env.example`.
 
+## Escopo validado vs próxima fase (fechamento 2026-06-21)
+
+- ✅ **Concluído/validado:** **Contas a Pagar / Conta paga / Compra paga** ponta a ponta
+  (POST real **#932**). Ver checkpoint **0014** (`CHECKPOINT_FECHAMENTO_SESSAO_AGENT_READY_CONTAS_PAGAR.md`).
+- ⏭️ **NÃO validado (não concluído):** **RH** via Telegram (lançamento/vale vs pagamento/diárias/
+  produção), **terceirizados** (serviço/pagamento) e **áudio/Whisper**.
+- **Próxima sessão começa pelo RH.** Plano em `roadmap/ROADMAP_RH_E_WHISPER.md` (Fase 1 RH; Fase 2
+  terceirizados; Fase 3 áudio/Whisper — não implementar antes do texto redondo).
+
 ## Pendências / próximos passos
 
 - **Opcional futuro:** avaliar rotação/revogação da chave antiga por higiene de segurança.

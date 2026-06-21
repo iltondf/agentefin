@@ -17,3 +17,4 @@
 | 0011 | `CHECKPOINT_LLM_LINGUAGEM_NATURAL.md` | LLM como fluxo principal: parser robusto, confirmação natural, defaults. 64 testes |
 | 0012 | `CHECKPOINT_LLM_CONVERSACIONAL.md` | LLM conversacional (reply/cálculo/intent=conversa) + modelo deepseek. 67 testes |
 | 0013 | `CHECKPOINT_AGENTE_OPERACIONAL_PRODUCAO.md` | ✅ Operacional em produção (`agenteclaudio`): POST real ponta a ponta → contaPagarId 932; busca CP reescrita. 110 testes |
+| 0014 | `CHECKPOINT_FECHAMENTO_SESSAO_AGENT_READY_CONTAS_PAGAR.md` | Fechamento da sessão: fase Contas a Pagar concluída/validada; RH e Whisper como próximas fases (roadmap). 110 testes |

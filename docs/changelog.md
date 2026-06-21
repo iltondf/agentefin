@@ -2,6 +2,17 @@
 
 Formato: data — fase — mudança.
 
+## 2026-06-21 — 🔒 Fechamento da sessão: fase Contas a Pagar concluída
+
+- **Fase Contas a Pagar/Conta paga/Compra paga: concluída e validada em produção** (resumo no
+  checkpoint **0014** `CHECKPOINT_FECHAMENTO_SESSAO_AGENT_READY_CONTAS_PAGAR.md`).
+- **NÃO validado hoje (não concluído):** RH via Telegram (lançamento/vale vs pagamento/diárias/
+  produção), terceirizados (serviço/pagamento) e áudio (Whisper). Próxima sessão começa pelo **RH**.
+- **Roadmap criado:** `roadmap/ROADMAP_RH_E_WHISPER.md` (Fase 1 RH; Fase 2 terceirizados; Fase 3 áudio/Whisper).
+- Auditoria de fechamento: `pytest` 110 passed; `bash -n` ok; scan de segredos só com prefixos
+  truncados documentados (chave id 7 aposentada); `.env`/`*.db`/`data/`/`logs` não versionados.
+- Sem mudança de código nesta etapa (apenas documentação de fechamento).
+
 ## 2026-06-21 — ✅ Agente OPERACIONAL em produção (POST real ponta a ponta) + busca CP reescrita
 
 - **Validação final ao vivo** no bot `agenteclaudio` (llm=True, write=True, drafts=True,
