@@ -313,6 +313,24 @@ def _sanitizar_fields(intent: str, fields: dict | None) -> dict:
     return f
 
 
+def _sem_pergunta_final(texto: str) -> str:
+    """Remove a última frase interrogativa de uma narração, para não duplicar a
+    pergunta canônica do slot-fill (a LLM às vezes já pergunta no próprio 'reply')."""
+    t = (texto or "").strip()
+    if not t.endswith("?"):
+        return t
+    corte = max(t.rfind(". "), t.rfind("! "), t.rfind("? ", 0, len(t) - 1))
+    return t[:corte + 1].strip() if corte != -1 else ""
+
+
+def _montar_pergunta(reply: str, pergunta: str, hint: str) -> str:
+    """Monta a mensagem de pergunta com a pergunta aparecendo UMA única vez (narração
+    da LLM sem a pergunta repetida) + dica de fluxo."""
+    partes = [p for p in (_sem_pergunta_final(reply), (pergunta or "").strip()) if p]
+    corpo = "\n\n".join(partes)
+    return f"{corpo}\n{hint}" if corpo else hint
+
+
 def _parece_resposta_curta(texto: str) -> bool:
     """True se a mensagem parece RESPOSTA a uma pergunta (curta, sem verbo de novo lançamento).
     Evita que 'comprei 11 cabos...' seja capturado como resposta de um rascunho pendente."""
@@ -526,7 +544,8 @@ async def _tratar_parse(m: Message, store, client, parsed: dict) -> None:
     falta_real = [c for c in (parsed.get("missing") or []) if not _tem_default(c)]
     if parsed.get("shouldAsk") and parsed.get("question") and falta_real:
         _set_aguardando(store, d, falta_real[0])
-        await m.answer(f"{pre}{parsed['question']}\n(rascunho #{d.id} — responda, ou diga 'cancelar')"); return
+        await m.answer(_montar_pergunta(reply, parsed["question"],
+                                        f"(rascunho #{d.id} — responda, ou diga 'cancelar')")); return
     # Resolve nomes→IDs + defaults para mostrar um resumo já com o que falta.
     try:
         payload, faltando, pergunta = await resolve.resolver(client, d)
@@ -539,6 +558,7 @@ async def _tratar_parse(m: Message, store, client, parsed: dict) -> None:
         pergunta, faltando = None, []
     if pergunta:
         _set_aguardando(store, d, (faltando or [None])[0])
-        await m.answer(f"{pre}{pergunta}\n(rascunho #{d.id} — depois diga 'confirmar')"); return
+        await m.answer(_montar_pergunta(reply, pergunta,
+                                        f"(rascunho #{d.id} — depois diga 'confirmar')")); return
     await m.answer(pre + fmt.resumo_rascunho(store.get(d.id)) +
                    "\n\nResponda CONFIRMAR para gravar ou CANCELAR.")

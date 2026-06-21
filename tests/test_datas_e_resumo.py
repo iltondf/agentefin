@@ -171,3 +171,45 @@ async def test_fluxo_comprei_vence_vira_pendente_sem_pago_em(tmp_path):
     d = store.list_active(UID)[0]
     assert d.intent == "criar_conta_pagar"
     assert "dataPagamento" not in (d.payload_extraido or {})
+
+
+# ── pergunta de slot-fill não duplica ──────────────────────────────────────
+def test_sem_pergunta_final_remove_so_a_pergunta():
+    assert commands._sem_pergunta_final("Vou anotar a areia. Qual o valor?") == "Vou anotar a areia."
+    assert commands._sem_pergunta_final("Calculei 650.") == "Calculei 650."
+    assert commands._sem_pergunta_final("Qual o valor?") == ""
+
+
+def test_montar_pergunta_uma_vez():
+    msg = commands._montar_pergunta(
+        "Ok, vou anotar a areia. Qual o valor?", "Qual o valor?", "(rascunho #1)")
+    assert msg.count("Qual o valor?") == 1
+    assert "Ok, vou anotar a areia." in msg  # narração preservada (sem a pergunta)
+
+
+async def test_fluxo_slot_fill_nao_duplica_pergunta(tmp_path):
+    _yaml(tmp_path)
+    store = DraftStore(tmp_path / "r.db")
+    m = FakeMsg("anotar uma areia para imperio das areias para o dia 26/06/26")
+    parsed = {"reply": "Ok, vou anotar a areia para Império das Areias com vencimento "
+                       "26/06/2026. Qual o valor?",
+              "intent": "criar_conta_pagar",
+              "fields": {"nomeFornecedor": "Imperio das Areias", "descricao": "areia",
+                         "dataVencimento": "2026-06-26"},
+              "missing": ["valor"], "shouldAsk": True, "question": "Qual o valor?"}
+    await commands._tratar_parse(m, store, _client("Imperio das Areias", 49), parsed)
+    joined = " ".join(m.replies)
+    assert joined.count("Qual o valor?") == 1     # pergunta única
+
+
+async def test_calculo_mantem_narracao_e_pergunta(tmp_path):
+    """Quando a narração NÃO é uma pergunta (ex.: cálculo), ela é preservada + a pergunta."""
+    _yaml(tmp_path)
+    store = DraftStore(tmp_path / "r.db")
+    m = FakeMsg("soma 325+325 e adiciona no Vanderli")
+    parsed = {"reply": "Calculei 325+325=650 para Vanderli.", "intent": "criar_lancamento_rh",
+              "fields": {"nomeFuncionario": "Vanderli", "valorUnit": 650, "destino": None},
+              "missing": ["destino"], "shouldAsk": True, "question": "Vale ou pagamento?"}
+    await commands._tratar_parse(m, store, _client("Vanderli", 10), parsed)
+    joined = " ".join(m.replies)
+    assert "650" in joined and "agamento" in joined.lower()
