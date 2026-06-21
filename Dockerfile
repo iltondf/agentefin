@@ -19,6 +19,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Código da aplicação.
 COPY main.py ./
 COPY financebot ./financebot
+COPY defaults.yaml ./
+
+# Rascunhos (SQLite) persistem em /app/data (volume montado em runtime).
+ENV DATA_DIR=/app/data
 
 # Processo único; SEM porta de entrada (só conexões de saída: Telegram + API).
 CMD ["python", "-m", "main"]

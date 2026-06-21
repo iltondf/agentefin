@@ -7,8 +7,10 @@ services:
     restart: unless-stopped
     env_file: .env
     # Sem `ports`: nada é exposto; nenhuma requisição externa entra.
-    # Sem `volumes`: o agente é stateless (sem SQLite/scheduler no MVP);
-    # os logs vão para stdout → ver com `docker compose logs`.
+    volumes:
+      # Persistência dos RASCUNHOS/pendências (SQLite em /app/data). Necessário p/
+      # os rascunhos sobreviverem a redeploy. Logs continuam em stdout.
+      - ./data:/app/data
     logging:
       driver: json-file
       options:

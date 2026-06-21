@@ -54,15 +54,16 @@ validar `/whoami`. Atualizar após `git push`: opção **3**. Ver `OPERADOR_VPS_
 - (Opcional) Apagar o bot antigo `Brglobal_financeiro_bot` no BotFather.
 - ⚠️ Token/chave **atuais NÃO** apareceram no chat (foram rotacionados na VPS) — os que
   vazaram (`8431551432…`, `bgf_live_ecffe92489e…`) não estão em uso.
-- **🌟 Agent-Ready / Secretária Operacional (write tools) — PLANEJADA** (não implementada).
-  Fonte da verdade: `BRGLOBAL_FINANCEIRO_API_AGENT_READY_2026-06-21.md` (raiz). O BRGlobal agora
-  expõe consulta + **escrita controlada** (`/api/agent/v1`). Plano consolidado (supera os planos
-  LLM-tools e secretária abaixo, agora com a API real): `docs/roadmap/PLANO_AGENT_READY_FASE_WRITE.md`,
-  `docs/arquitetura/AGENT_READY_TOOLS_WRITE_DESIGN.md`, `docs/arquitetura/RASCUNHOS_PENDENCIAS_DESIGN.md`,
-  `docs/seguranca/WRITE_CONFIRMATION_GUARDRAILS.md`, `docs/seguranca/LLM_PARSER_GUARDRAILS.md` (checkpoint 0008).
-  Decisões: **1 bot** com modos; **LLM = parser** (não executor); **escrita só após confirmação +
-  Idempotency-Key**; **rascunhos em SQLite** (exige volume `/app/data`); **2 chaves** (read-only atual +
-  nova com escopos write). Próximo: Fase 1 (cliente 2-envelopes + read tools), só após aprovação.
-- Planos anteriores (contexto histórico, consolidados no 0008): `PLANO_LLM_FASE_2.md` (0006),
-  `PLANO_SECRETARIA_OPERACIONAL.md` (0007).
+- **🌟 Agent-Ready (tools + rascunhos + parser) — IMPLEMENTADO** (checkpoint 0009).
+  Fonte da verdade: `BRGLOBAL_FINANCEIRO_API_AGENT_READY_2026-06-21.md` (raiz).
+  - Cliente HTTP **2-envelopes** (legacy/v2); chaves **read/write separadas**; idempotência.
+  - **21 read tools** (antigas+novas) + **6 write tools** com **tripla trava** (WRITE_ENABLED+chave,
+    confirmação humana, payload válido). **Rascunhos SQLite** (`/app/data`, volume) + `/pendencias`.
+    **Defaults** (`defaults.yaml`). **LLM parser** (JSON). **Comandos antigos preservados.**
+  - **51 testes** verdes. Docs: `arquitetura/*_IMPLEMENTADO.md`, `seguranca/WRITE_RUNTIME_GUARDRAILS.md`,
+    `operacao/COMO_USAR_*`, `operacao/EVIDENCIAS_AGENT_READY_WRITE_TESTS.md`.
+  - **Estado de segurança:** `WRITE_ENABLED=false`, `LLM_ENABLED=false` por padrão. **POST real
+    NÃO executado.** Escrita real exige: backup + `BRGLOBAL_WRITE_API_KEY` + `/whoami` write +
+    frase `AUTORIZO_POST_REAL_AGENT_READY`.
+- Planejamento que originou (contexto): `PLANO_AGENT_READY_FASE_WRITE.md` (0008), consolidando 0006/0007.
 - Roadmap (outros): resumos automáticos (scheduler — **não ativar sem decisão**), contas a receber.

@@ -46,7 +46,8 @@ class AccessMiddleware(BaseMiddleware):
 def build_client() -> FinanceClient:
     return FinanceClient(
         base_url=settings.brglobal_api_base_url,
-        api_key=settings.brglobal_api_key,
+        read_key=settings.read_key,
+        write_key=settings.write_key,
         timeout=settings.http_timeout,
         retries=settings.http_retries,
     )
@@ -61,19 +62,32 @@ async def run() -> None:
         return
     if not settings.allowed_ids:
         log_event("whitelist_vazia", level="warning")
-    if not settings.brglobal_api_key:
-        log_event("api_key_ausente", level="warning")
+    if not settings.read_key:
+        log_event("read_key_ausente", level="warning")
+
+    # Defaults (YAML) e rascunhos (SQLite) — opcionais/degradáveis.
+    from financebot import defaults
+    from financebot.drafts import DraftStore
+
+    defaults.load_defaults(settings.defaults_path)
+    store = None
+    if settings.drafts_enabled:
+        store = DraftStore(settings.data_path / "agentefin.db")
+        if not store.available:
+            log_event("drafts_indisponivel", level="warning")
 
     client = build_client()
     bot = Bot(token=settings.telegram_bot_token)
     dp = Dispatcher()
     dp.message.outer_middleware(AccessMiddleware())
-    dp.include_router(build_router(client, settings))
+    dp.include_router(build_router(client, settings, store))
 
     log_event(
         "bot_start",
         base_url=settings.brglobal_api_base_url,
         llm=settings.llm_enabled,
+        write=settings.can_write,
+        drafts=bool(store and store.available),
         allowed=len(settings.allowed_ids),
     )
     await dp.start_polling(bot)

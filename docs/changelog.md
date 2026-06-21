@@ -2,6 +2,19 @@
 
 Formato: data — fase — mudança.
 
+## 2026-06-21 — Implementação Agent-Ready (tools + rascunhos + parser LLM)
+
+- **Cliente HTTP 2-envelopes** (legacy `data` / v2 `data.data`+`error`); chaves **read/write
+  separadas**; idempotência; retry seguro. **Comandos antigos preservados** (0 token).
+- **Registry de tools** (21 read: antigas + novas v2) e **6 write tools** com **tripla trava**
+  (WRITE_ENABLED+chave, confirmação humana, payload válido) + Idempotency-Key.
+- **Rascunhos SQLite** (`fin_draft` em `/app/data`, volume no compose) + comandos
+  `/pendencias`,`detalhar/confirmar/cancelar N`. **Defaults** (`defaults.yaml`). **LLM parser**
+  (JSON, off por padrão). **Operador VPS** com novas envs + validar /whoami escrita (sem POST).
+- **51 testes** passando; `bash -n` OK. `WRITE_ENABLED=false`, `LLM_ENABLED=false` por padrão.
+  **POST real NÃO executado.** Docs: `*_IMPLEMENTADO.md`, `WRITE_RUNTIME_GUARDRAILS.md`,
+  `COMO_USAR_*`, `EVIDENCIAS_AGENT_READY_WRITE_TESTS.md`; checkpoint 0009.
+
 ## 2026-06-21 — Planejamento Agent-Ready (write tools + rascunhos + confirmação)
 
 - **Planejamento (sem código/.env/deploy/LLM/POST).** Spec `BRGLOBAL_FINANCEIRO_API_AGENT_READY_2026-06-21.md`

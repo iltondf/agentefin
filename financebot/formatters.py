@@ -188,3 +188,61 @@ def whoami(obj: Any) -> str:
         f"Escopos: {esc}\n"
         f"Servidor: {obj.get('serverTime', '?')}"
     )
+
+
+# ── Agent-ready (v2): candidatos e pendências ─────────────────────────────
+def candidatos_v2(v2: Any) -> str:
+    """Resposta v2 já desembrulhada {data:{candidatos|servicos|...}}. Lista resumida."""
+    d = v2.get("data") if isinstance(v2, dict) else None
+    if not isinstance(d, dict):
+        return "Nada encontrado."
+    lista = None
+    for k in ("candidatos", "servicos", "unidades", "contas"):
+        if isinstance(d.get(k), list):
+            lista = d[k]; break
+    if not lista:
+        return "Nada encontrado."
+    linhas = []
+    for i, c in enumerate(lista[:_MAX], 1):
+        nome = c.get("nome") or c.get("apelido") or c.get("descricao") or "(sem nome)"
+        extra = c.get("cargo") or c.get("tipoFornecedor") or c.get("banco") or c.get("status") or ""
+        ident = c.get("id") or c.get("funcionarioId") or ""
+        linhas.append(f"{i}. {nome} {('— ' + str(extra)) if extra else ''} (id {ident})".strip())
+    cab = "Encontrei mais de um — qual?" if (d.get("ambiguo") or len(lista) > 1) else "Encontrado:"
+    return cab + "\n" + "\n".join(linhas)
+
+
+_DOMINIO_EMOJI = {"rh": "👷", "financeiro": "💸", "terceirizado": "🔧", "indefinido": "❓"}
+
+
+def _resumo_draft(d) -> str:
+    p = d.payload_extraido or {}
+    valor = p.get("valor") or p.get("valorUnit")
+    quem = p.get("nomeFuncionario") or p.get("nomeFornecedor") or p.get("nome") or ""
+    desc = p.get("descricao") or p.get("tipo") or d.intent or ""
+    val = f" — {brl(valor)}" if valor is not None else ""
+    return f"{_DOMINIO_EMOJI.get(d.dominio, '•')} {d.dominio} — {quem} {desc}{val}".strip()
+
+
+def lista_pendencias(drafts: list) -> str:
+    if not drafts:
+        return "Você não tem pendências. ✅"
+    linhas = [f"Você tem {len(drafts)} pendência(s):", ""]
+    for d in drafts:
+        marca = {"confirmado": "✔", "erro": "⚠", "aguardando_confirmacao": "•"}.get(d.status, "•")
+        linhas.append(f"{marca} {d.id}. {_resumo_draft(d)}  [{d.status}]")
+    linhas.append("\nResponda: detalhar N · confirmar N · cancelar N")
+    return "\n".join(linhas)
+
+
+def detalhe_pendencia(d) -> str:
+    p = d.payload_extraido or {}
+    linhas = [f"📄 Pendência #{d.id} [{d.status}] — {d.dominio}",
+              f"Intenção: {d.intent or '—'}", f"Texto: {d.texto_original}", ""]
+    for k, v in p.items():
+        linhas.append(f"  {k}: {v}")
+    if d.campos_faltando:
+        linhas.append(f"\n⚠️ Faltando: {', '.join(d.campos_faltando)}")
+    if d.erro_api:
+        linhas.append(f"\n❌ Erro: {d.erro_api}")
+    return "\n".join(linhas)

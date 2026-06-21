@@ -7,7 +7,8 @@ from financebot.client import FinanceAPIError, FinanceClient
 def _client(handler, retries=2):
     return FinanceClient(
         base_url="http://test/api/agent/v1",
-        api_key="k",
+        read_key="k",
+        write_key="w",
         retries=retries,
         transport=httpx.MockTransport(handler),
     )

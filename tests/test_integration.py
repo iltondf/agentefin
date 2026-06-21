@@ -55,7 +55,7 @@ def base_url():
 
 
 async def test_end_to_end_real_http(base_url):
-    client = FinanceClient(base_url=base_url, api_key="k")
+    client = FinanceClient(base_url=base_url, read_key="k")
     data = await client.contas_pagar_hoje()
     texto = fmt.hoje(data)
     assert "Energia SA" in texto

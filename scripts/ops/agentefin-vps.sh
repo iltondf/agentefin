@@ -17,24 +17,30 @@ cd "$ROOT"
 ENV_FILE="$ROOT/.env"
 
 # Ordem das variáveis no .env
-KEYS=(TELEGRAM_BOT_TOKEN ALLOWED_USER_IDS BRGLOBAL_API_BASE_URL BRGLOBAL_API_KEY TZ \
+KEYS=(TELEGRAM_BOT_TOKEN ALLOWED_USER_IDS BRGLOBAL_API_BASE_URL \
+      BRGLOBAL_API_KEY BRGLOBAL_READ_API_KEY BRGLOBAL_WRITE_API_KEY \
+      WRITE_ENABLED DRAFTS_ENABLED DATA_DIR DEFAULTS_FILE TZ \
       LLM_ENABLED LLM_PROVIDER LLM_MODEL OPENROUTER_API_KEY \
       HTTP_TIMEOUT HTTP_RETRIES RATE_LIMIT_PER_MIN LOG_LEVEL)
 
 declare -A CUR   # valores atuais carregados do .env
 declare -A NEW   # valores a salvar
 
-is_secret()   { case "$1" in TELEGRAM_BOT_TOKEN|BRGLOBAL_API_KEY|OPENROUTER_API_KEY) return 0;; *) return 1;; esac; }
-is_required() { case "$1" in TELEGRAM_BOT_TOKEN|ALLOWED_USER_IDS|BRGLOBAL_API_BASE_URL|BRGLOBAL_API_KEY|TZ|LLM_ENABLED) return 0;; *) return 1;; esac; }
+is_secret()   { case "$1" in TELEGRAM_BOT_TOKEN|BRGLOBAL_API_KEY|BRGLOBAL_READ_API_KEY|BRGLOBAL_WRITE_API_KEY|OPENROUTER_API_KEY) return 0;; *) return 1;; esac; }
+is_required() { case "$1" in TELEGRAM_BOT_TOKEN|ALLOWED_USER_IDS|BRGLOBAL_API_BASE_URL|TZ|LLM_ENABLED|WRITE_ENABLED) return 0;; *) return 1;; esac; }
 
 default_for() {
   case "$1" in
     ALLOWED_USER_IDS)       echo "8646895490";;
     BRGLOBAL_API_BASE_URL)  echo "https://lixo.brglobal.com.br/api/agent/v1";;
+    WRITE_ENABLED)          echo "false";;
+    DRAFTS_ENABLED)         echo "true";;
+    DATA_DIR)               echo "/app/data";;
+    DEFAULTS_FILE)          echo "defaults.yaml";;
     TZ)                     echo "America/Sao_Paulo";;
     LLM_ENABLED)            echo "false";;
     LLM_PROVIDER)           echo "openrouter";;
-    HTTP_TIMEOUT)           echo "20";;
+    HTTP_TIMEOUT)           echo "32";;
     HTTP_RETRIES)           echo "2";;
     RATE_LIMIT_PER_MIN)     echo "30";;
     LOG_LEVEL)              echo "INFO";;
@@ -47,7 +53,13 @@ desc_for() {
     TELEGRAM_BOT_TOKEN)     echo "Token do bot no Telegram (BotFather). SEGREDO.";;
     ALLOWED_USER_IDS)       echo "IDs Telegram autorizados (vírgula). Vazio = nega todos.";;
     BRGLOBAL_API_BASE_URL)  echo "Base da API de agentes do BRGlobal.";;
-    BRGLOBAL_API_KEY)       echo "Chave Bearer do agente (bgf_live_/bgf_test_). SEGREDO.";;
+    BRGLOBAL_API_KEY)       echo "Chave Bearer de LEITURA (compat). SEGREDO.";;
+    BRGLOBAL_READ_API_KEY)  echo "Chave de LEITURA (opcional; precede a compat em GET). SEGREDO.";;
+    BRGLOBAL_WRITE_API_KEY) echo "Chave de ESCRITA (escopos write:*). SEGREDO. NÃO usar a read.";;
+    WRITE_ENABLED)          echo "Habilita POST (true/false). Padrão false. Só com chave write.";;
+    DRAFTS_ENABLED)         echo "Habilita rascunhos/pendências (SQLite). Padrão true.";;
+    DATA_DIR)               echo "Diretório de dados (rascunhos). No container: /app/data.";;
+    DEFAULTS_FILE)          echo "Arquivo de defaults (YAML). Padrão defaults.yaml.";;
     TZ)                     echo "Fuso horário do container.";;
     LLM_ENABLED)            echo "Liga/desliga a LLM (true/false). Padrão false.";;
     LLM_PROVIDER)           echo "Provedor LLM (ex.: openrouter). Só usado se LLM_ENABLED=true.";;
@@ -105,10 +117,18 @@ prompt_var() {
 
 validate_env() {
   local ok=1 req
-  for req in TELEGRAM_BOT_TOKEN ALLOWED_USER_IDS BRGLOBAL_API_BASE_URL BRGLOBAL_API_KEY TZ LLM_ENABLED; do
+  for req in TELEGRAM_BOT_TOKEN ALLOWED_USER_IDS BRGLOBAL_API_BASE_URL TZ LLM_ENABLED WRITE_ENABLED; do
     if [ -z "${NEW[$req]-}" ]; then echo "  ⚠ obrigatório vazio: $req"; ok=0; fi
   done
+  # chave de leitura: precisa de pelo menos uma (read ou compat)
+  if [ -z "${NEW[BRGLOBAL_READ_API_KEY]-}" ] && [ -z "${NEW[BRGLOBAL_API_KEY]-}" ]; then
+    echo "  ⚠ defina BRGLOBAL_READ_API_KEY ou BRGLOBAL_API_KEY (leitura)"; ok=0
+  fi
   case "${NEW[LLM_ENABLED]-}" in true|false) ;; *) echo "  ⚠ LLM_ENABLED deve ser 'true' ou 'false'"; ok=0;; esac
+  case "${NEW[WRITE_ENABLED]-}" in true|false) ;; *) echo "  ⚠ WRITE_ENABLED deve ser 'true' ou 'false'"; ok=0;; esac
+  if [ "${NEW[WRITE_ENABLED]-}" = "true" ] && [ -z "${NEW[BRGLOBAL_WRITE_API_KEY]-}" ]; then
+    echo "  ⚠ WRITE_ENABLED=true exige BRGLOBAL_WRITE_API_KEY"; ok=0
+  fi
   if [ "${NEW[LLM_ENABLED]-}" = "true" ]; then
     [ -z "${NEW[LLM_PROVIDER]-}" ] && { echo "  ⚠ LLM_ENABLED=true exige LLM_PROVIDER"; ok=0; }
     if [ "${NEW[LLM_PROVIDER]-}" = "openrouter" ] && [ -z "${NEW[OPENROUTER_API_KEY]-}" ]; then
@@ -207,16 +227,17 @@ restart_bot() {
   docker compose logs --tail=50
 }
 
-validate_api() {
-  echo "== Validar API BRGlobal (/whoami) =="
-  load_env
-  local base="${CUR[BRGLOBAL_API_BASE_URL]-}" key="${CUR[BRGLOBAL_API_KEY]-}"
+# _whoami_check <rótulo> <chave>  — GET /whoami (sem POST). Não imprime a chave.
+_whoami_check() {
+  local rotulo="$1" key="$2"
+  local base="${CUR[BRGLOBAL_API_BASE_URL]-}"
   [ -n "$base" ] || { echo "  ❌ BRGLOBAL_API_BASE_URL vazio (opção 2)"; return 1; }
-  [ -n "$key" ]  || { echo "  ❌ BRGLOBAL_API_KEY vazio (opção 2)"; return 1; }
+  [ -n "$key" ]  || { echo "  ❌ chave $rotulo vazia (opção 2)"; return 1; }
   command -v curl >/dev/null 2>&1 || { echo "  ❌ curl ausente"; return 1; }
   local body status
   body="$(mktemp)"
   status="$(curl -s -m 15 -o "$body" -w '%{http_code}' -H "Authorization: Bearer $key" "$base/whoami" 2>/dev/null || echo 000)"
+  echo "  [$rotulo]"
   case "$status" in
     200)
       echo "  ✅ 200 OK (chave válida)"
@@ -232,6 +253,21 @@ validate_api() {
     *)   echo "  ⚠ HTTP $status";;
   esac
   rm -f "$body"
+}
+
+validate_api_read() {
+  echo "== Validar API (LEITURA) — /whoami =="
+  load_env
+  local key="${CUR[BRGLOBAL_READ_API_KEY]-}"
+  [ -n "$key" ] || key="${CUR[BRGLOBAL_API_KEY]-}"
+  _whoami_check "read" "$key"
+}
+
+validate_api_write() {
+  echo "== Validar API (ESCRITA) — /whoami (NÃO executa POST) =="
+  load_env
+  _whoami_check "write" "${CUR[BRGLOBAL_WRITE_API_KEY]-}"
+  echo "  ℹ Confirme que os escopos incluem write:* esperados. POST só com WRITE_ENABLED=true + autorização."
 }
 
 checklist_telegram() {
@@ -260,8 +296,9 @@ menu() {
  5) Ver logs
  6) Reiniciar bot
  7) Parar bot
- 8) Validar API BRGlobal (/whoami)
- 9) Mostrar checklist Telegram
+ 8) Validar API LEITURA (/whoami)
+ 9) Validar API ESCRITA (/whoami, sem POST)
+10) Mostrar checklist Telegram
  0) Sair
 EOF
     local opt=""
@@ -274,8 +311,9 @@ EOF
       5) docker compose logs --tail=200 || true;;
       6) restart_bot || true;;
       7) docker compose down || true;;
-      8) validate_api || true;;
-      9) checklist_telegram || true;;
+      8) validate_api_read || true;;
+      9) validate_api_write || true;;
+      10) checklist_telegram || true;;
       0) echo "Saindo."; exit 0;;
       *) echo "Opção inválida.";;
     esac

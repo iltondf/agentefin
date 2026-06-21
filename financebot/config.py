@@ -1,6 +1,6 @@
 """Configuração via variáveis de ambiente (pydantic-settings).
 
-Fonte única de configuração. No container as variáveis vêm do Easypanel;
+Fonte única de configuração. No container as variáveis vêm do operador/VPS;
 `.env` é só para desenvolvimento local. Nenhum segredo no código.
 """
 from __future__ import annotations
@@ -26,16 +26,29 @@ class Settings(BaseSettings):
     rate_limit_per_min: int = 20
 
     # ── API BRGlobal (fonte da verdade) ──
-    brglobal_api_base_url: str = "http://localhost:3333/api/agent/v1"
+    brglobal_api_base_url: str = "https://lixo.brglobal.com.br/api/agent/v1"
+    # Compatibilidade: chave read antiga. GET usa read_api_key se existir, senão esta.
     brglobal_api_key: str = ""
-    http_timeout: float = 30.0
+    brglobal_read_api_key: str = ""   # chave de leitura (opcional)
+    brglobal_write_api_key: str = ""  # chave de escrita (obrigatória p/ POST)
+    http_timeout: float = 32.0
     http_retries: int = 2
     default_conta_bancaria_id: int | None = None
 
+    # ── Escrita (gating) ──
+    write_enabled: bool = False  # POST só ocorre se True E houver write key
+
+    # ── Rascunhos / dados ──
+    drafts_enabled: bool = True
+    data_dir: str = "data"          # no container: /app/data (volume)
+    defaults_file: str = "defaults.yaml"
+
     # ── LLM (opcional — desligada por padrão) ──
     llm_enabled: bool = False
+    llm_provider: str = "openrouter"
     llm_base_url: str = "https://openrouter.ai/api/v1"
     llm_api_key: str = ""
+    openrouter_api_key: str = ""  # alias preferido quando provider=openrouter
     llm_model: str = ""
     llm_timeout: float = 20.0
 
@@ -47,8 +60,6 @@ class Settings(BaseSettings):
     @field_validator("default_conta_bancaria_id", mode="before")
     @classmethod
     def _empty_to_none(cls, v):
-        """Trata string vazia (ex.: `.env.example` copiado as-is) como None,
-        evitando ValidationError no boot para o campo opcional int."""
         if v is None or (isinstance(v, str) and v.strip() == ""):
             return None
         return v
@@ -62,6 +73,38 @@ class Settings(BaseSettings):
             if part.isdigit():
                 out.add(int(part))
         return out
+
+    @property
+    def read_key(self) -> str:
+        """Chave para GET: read_api_key se definida, senão a compatível antiga."""
+        return self.brglobal_read_api_key or self.brglobal_api_key
+
+    @property
+    def write_key(self) -> str:
+        """Chave para POST (nunca usa a read). Vazia => escrita indisponível."""
+        return self.brglobal_write_api_key
+
+    @property
+    def llm_effective_key(self) -> str:
+        """Chave LLM: openrouter_api_key tem precedência quando provider=openrouter."""
+        if self.llm_provider == "openrouter" and self.openrouter_api_key:
+            return self.openrouter_api_key
+        return self.llm_api_key or self.openrouter_api_key
+
+    @property
+    def can_write(self) -> bool:
+        """True só se escrita habilitada E chave de escrita presente."""
+        return self.write_enabled and bool(self.write_key)
+
+    @property
+    def data_path(self) -> Path:
+        p = Path(self.data_dir)
+        return p if p.is_absolute() else PROJECT_ROOT / p
+
+    @property
+    def defaults_path(self) -> Path:
+        p = Path(self.defaults_file)
+        return p if p.is_absolute() else PROJECT_ROOT / p
 
     @property
     def log_full_path(self) -> Path:

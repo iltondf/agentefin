@@ -1,0 +1,21 @@
+# Defaults do agente (SEM segredos). Edite conforme sua operação.
+# Quando um default é usado, o bot mostra no resumo (ex.: "Usei obra padrão: ...").
+# IDs devem ser preenchidos com os reais (descubra via /buscar_obra, /buscar_conta).
+
+obraPadraoId:            # ex.: 4
+contaBancariaPadraoId:   # ex.: 5
+formaPagamentoPadrao: pix
+
+rh:
+  destinoPadrao: pagamento   # vale | pagamento
+  # diárias padrão por funcionário (nome -> valor); obra opcional por funcionário
+  # funcionarios:
+  #   Vanderli:
+  #     diariaPadrao: 120
+  #     obraPadraoId: 4
+
+# categoria provável por palavra-chave (palavra -> categoriaId)
+categorias:
+  # areia: 16
+  # ferramenta: 16
+  # material: 16
