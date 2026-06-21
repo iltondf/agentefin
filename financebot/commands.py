@@ -339,24 +339,47 @@ async def _maybe_pendencia_cmd(m: Message, store, client, settings, texto: str) 
         store.expire_old()
         await m.answer(fmt.lista_pendencias(store.list_active(m.from_user.id))); return True
 
+    # "detalhar" sozinho: 1 pendência → detalha; várias → pede o número. NUNCA vai p/ LLM.
+    if texto in ("detalhar", "detalha"):
+        abertos = _aguardando(store, m.from_user.id)
+        if not abertos:
+            await m.answer("Você não tem pendências."); return True
+        if len(abertos) > 1:
+            await m.answer("Você tem mais de uma pendência. Qual item deseja detalhar? "
+                           "Ex.: detalhar " + str(abertos[-1].id) + "\n\n"
+                           + fmt.lista_pendencias(abertos)); return True
+        await m.answer(fmt.detalhe_pendencia(abertos[0])); return True
+
+    # "corrigir" sozinho: orienta o formato. NUNCA vai p/ LLM.
+    if texto in ("corrigir", "corrige"):
+        await m.answer("Para corrigir, use: corrigir N <campo> <valor>  (ex.: corrigir 3 valor 50)")
+        return True
+
     # Confirmação NATURAL (sem número): age no único rascunho em aberto.
+    # Palavras de controle exatas ("confirmar"/"confirma"/...) NUNCA vão para a LLM.
+    _confirm_exato = texto in ("confirmar", "confirma", "confirmo", "confirmar.")
     if texto in _CONFIRM_WORDS:
         abertos = _aguardando(store, m.from_user.id)
         if not abertos:
-            return False  # nada a confirmar → deixa cair no parser/ajuda
+            if _confirm_exato:
+                await m.answer("Você não tem pendências para confirmar."); return True
+            return False  # "sim/ok" sem rascunho → deixa cair no parser (pode ser conversa)
         if len(abertos) > 1:
-            await m.answer("Você tem mais de uma pendência. Qual confirmar? Ex.: confirmar "
+            await m.answer("Você tem mais de uma pendência. Qual deseja confirmar? Ex.: confirmar "
                            + str(abertos[-1].id) + "\n\n" + fmt.lista_pendencias(abertos)); return True
         await _confirmar(m, store, client, settings, abertos[0]); return True
 
     # Cancelamento NATURAL (sem número).
+    _cancel_exato = texto in ("cancelar", "cancela", "cancelo", "cancelar.")
     if texto in _CANCEL_WORDS:
         abertos = _aguardando(store, m.from_user.id)
         if not abertos:
-            return False
+            if _cancel_exato:
+                await m.answer("Você não tem pendências para cancelar."); return True
+            return False  # "não/deixa pra lá" sem rascunho → pode ser conversa
         if len(abertos) > 1:
-            await m.answer("Você tem mais de uma pendência. Qual cancelar? Ex.: cancelar "
-                           + str(abertos[-1].id)); return True
+            await m.answer("Você tem mais de uma pendência. Qual deseja cancelar? Ex.: cancelar "
+                           + str(abertos[-1].id) + "\n\n" + fmt.lista_pendencias(abertos)); return True
         store.set_status(abertos[0].id, "cancelado")
         await m.answer(f"❌ Pendência {abertos[0].id} cancelada. (nenhum POST executado)"); return True
 

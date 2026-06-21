@@ -2,6 +2,17 @@
 
 Formato: data — fase — mudança.
 
+## 2026-06-21 — Roteamento de pendências + forma padrão + fornecedor Outros
+
+- **Roteamento:** `detalhar`/`confirmar`/`cancelar`/`corrigir` sozinhos **nunca** vão para a LLM.
+  Com 1 pendência agem nela; com várias pedem o número ("Qual deseja…? Ex.: detalhar 3").
+- **Forma de pagamento:** padrão **Pix**; só usa "outro" se o texto disser "outro/outra forma/de
+  outro jeito" (ignora `formaPagamento=outro` que a LLM devolva sem o usuário ter dito). Mostra
+  "Pix (forma padrão)".
+- **Fornecedor "Outros" = id 6** (`fornecedorOutrosId`): fornecedor não encontrado → lança em
+  Outros + `[AJUSTAR FORNECEDOR] fornecedor informado: <nome>` (não trava). ≠ conta bancária 6.
+- defaults: novas palavras de categoria (fio/cabo/tubo→15). **87 testes** (A–F do operador).
+
 ## 2026-06-21 — Conta bancária por alias/final + defaults ágeis
 
 - **Conta de saída:** resolve por id explícito → **alias** (`conta1`/`conta2`/`conta um/dois`) →

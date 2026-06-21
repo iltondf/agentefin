@@ -7,8 +7,9 @@
 obraPadraoId: 4
 categoriaPadraoId: 15        # usada quando não informada/inferida (Materiais de Construção)
 formaPagamentoPadrao: pix
-# fornecedor "Outros" p/ compras sem fornecedor reconhecido (ajustar depois no web)
-fornecedorOutrosId:          # opcional: preencha com o id do fornecedor "Outros", se existir
+# fornecedor "Outros" p/ compras sem fornecedor reconhecido (ajustar depois no web).
+# ATENÇÃO: é id de FORNECEDOR (domínio diferente de contaBancariaId).
+fornecedorOutrosId: 6        # fornecedor "Outros" (NÃO confundir com conta bancária 6)
 
 # ── Conta bancária de saída ──
 contaBancariaPadraoId: 5     # sem informar conta → conta final 85
@@ -33,6 +34,9 @@ categorias:
   construção: 15
   cimento: 15
   brita: 15
+  fio: 15
+  cabo: 15
+  tubo: 15
 
 rh:
   destinoPadrao: pagamento   # vale | pagamento

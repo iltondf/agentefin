@@ -63,6 +63,7 @@ async def _resolver_unico(client: FinanceClient, path: str, nome: str, rotulo: s
 async def resolver(client: FinanceClient, draft) -> tuple[dict, list, str | None]:
     intent = draft.intent or ""
     p = dict(draft.payload_extraido or {})
+    p["_texto"] = getattr(draft, "texto_original", "") or ""  # p/ inferências (interno)
 
     if intent == "criar_lancamento_rh":
         return await _rh(client, p)
@@ -141,7 +142,7 @@ async def _cp(client: FinanceClient, p: dict, *, paga: bool) -> tuple[dict, list
     if p.get("categoriaId"):
         out["categoriaId"] = p["categoriaId"]
     else:
-        termo = f"{p.get('categoriaPalavra','')} {p.get('descricao','')} {p.get('texto','')}"
+        termo = f"{p.get('categoriaPalavra','')} {p.get('descricao','')} {p.get('_texto','')}"
         cat = defaults.categoria_por_palavra(termo)
         if cat:
             out["categoriaId"] = cat
@@ -164,11 +165,15 @@ async def _cp(client: FinanceClient, p: dict, *, paga: bool) -> tuple[dict, list
         out["observacoes"] = f"{out.get('observacoes','')} {p['observacoes']}".strip()
 
     if paga:
-        if p.get("formaPagamento"):
-            out["formaPagamento"] = p["formaPagamento"]
+        forma = (p.get("formaPagamento") or "").strip().lower()
+        texto_low = (p.get("_texto") or "").lower()
+        # A LLM às vezes devolve "outro" sem o usuário ter dito; só aceitar se o texto disser.
+        disse_outro = any(t in texto_low for t in ("outro", "outra forma", "de outro jeito"))
+        if forma and not (forma == "outro" and not disse_outro):
+            out["formaPagamento"] = forma
         else:
             out["formaPagamento"] = defaults.get("formaPagamentoPadrao") or "pix"
-            usados.append(f"forma de pagamento: {out['formaPagamento']}")
+            usados.append("Pix (forma padrão)")
         out["dataPagamento"] = normalizar_data(p.get("dataPagamento") or "hoje")
         # ── Conta bancária de saída: id → alias (conta1/conta2) → final (85/97) → padrão ──
         conta_id = None
