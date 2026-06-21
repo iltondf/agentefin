@@ -20,5 +20,14 @@
 ## Debug
 `/buscar_fornecedor <nome>` · `/buscar_conta <nome>` · `/buscar_contas_pagar` (via tool).
 
+## Comandos manuais (sem LLM)
+- `/cp_teste <fornecedor> <valor> [amanha]` → conta pendente (rascunho → `confirmar N`).
+- `/conta_paga_teste <fornecedor> <valor> [pix] [hoje]` → conta paga.
+> Categoria/obra/conta vêm de `defaults.yaml` quando configurados; senão o bot pergunta.
+
 ## Importante
-Nada é gravado sem **confirmação**. Duplicado provável → o bot avisa e só grava se você confirmar.
+Nada é gravado sem **confirmação** (`confirmar N`). Duplicado provável → o bot avisa.
+
+## Validado (2026-06-21)
+`POST /financeiro/contas-pagar` → **#929** (pendente) e **#930** (paga, Pix/CEF), R$ 1,00 cada,
+`[TESTE_AGENT_READY]`; replay idempotente não duplica; conflito de key → 409 tratado.

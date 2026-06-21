@@ -2,6 +2,19 @@
 
 Formato: data — fase — mudança.
 
+## 2026-06-21 — Fluxo Telegram ligado + validação real de escrita
+
+- **`confirmar N` agora EXECUTA a escrita**: resolve nomes→IDs (busca), valida, `POST` com
+  Idempotency-Key, atualiza rascunho (executado/erro). `corrigir N <campo> <valor>`,
+  `cancelar N` (não toca no BRGlobal), comandos manuais `/rh_teste`,`/cp_teste`,`/conta_paga_teste`
+  (criam rascunho sem LLM). Novo `resolve.py` (nomes→IDs + defaults). `truststore` (TLS local).
+- **POSTs reais autorizados** (`AUTORIZO_POST_REAL_AGENT_READY` + backup): RH **#291**, conta a
+  pagar **#929** (pendente) e **#930** (paga), `[TESTE_AGENT_READY]` R$ 1,00; idempotência OK
+  (replay não duplica; conflito→409); sem duplicidade. **Não há endpoint de apagar** via agente.
+- **57 testes** (6 de fluxo Telegram novos). Docs: `EVIDENCIAS_AGENT_READY_TELEGRAM_TESTS.md` +
+  `COMO_USAR_*` atualizados. `WRITE_ENABLED`/`LLM_ENABLED` seguem false no `.env`. Deploy VPS
+  pendente (sem SSH). ⚠️ rotacionar chave write id 17.
+
 ## 2026-06-21 — Implementação Agent-Ready (tools + rascunhos + parser LLM)
 
 - **Cliente HTTP 2-envelopes** (legacy `data` / v2 `data.data`+`error`); chaves **read/write

@@ -1,29 +1,38 @@
-"""Command Router — comandos antigos (0 token, intactos) + read tools novas + pendências.
+"""Command Router — comandos antigos (0 token) + read tools + pendências + escrita.
 
-A LLM (se habilitada) é parser/seletor: monta rascunho; NUNCA executa POST.
-Escrita só ocorre via confirmação explícita do usuário (e gating em tools_write).
+Fluxo de escrita (sempre): mensagem/comando → RASCUNHO → resumo → `confirmar N`
+→ resolve IDs (busca) → valida → POST (Idempotency-Key) → resultado. Gating em tools_write.
+A LLM (se ligada) é parser; comandos manuais funcionam mesmo com LLM desligada.
 """
 from __future__ import annotations
+
+from datetime import datetime, timezone
 
 from aiogram import Router
 from aiogram.filters import Command, CommandStart
 from aiogram.types import Message
 
 from financebot import formatters as fmt
-from financebot import parser
+from financebot import parser, resolve
 from financebot.client import FinanceAPIError, FinanceClient, friendly
 from financebot.config import Settings
 from financebot.logging_setup import log_event
 from financebot.tools import build_read_registry
+from financebot.tools_write import WRITE_TOOLS, executar_write, gerar_idempotency_key, validar_payload
 
 HELP = (
     "Agente Financeiro BRGlobal 🤖💰\n"
     "Consultas (somente leitura):\n"
     "/hoje /vencidas /criticas /proximos7 /painel /resumo /whoami\n\n"
-    "Buscas (debug):\n"
+    "Buscas:\n"
     "/buscar_funcionario <nome> · /buscar_fornecedor <nome> · /buscar_conta <nome>\n\n"
-    "Pendências (rascunhos):\n"
-    "/pendencias · detalhar N · confirmar N · cancelar N\n\n"
+    "Lançar (cria rascunho — confirma depois):\n"
+    "/rh_teste <funcionario> <tipo> <vale|pagamento> <valor> [hoje]\n"
+    "/cp_teste <fornecedor> <valor> [amanha]\n"
+    "/conta_paga_teste <fornecedor> <valor> [pix] [hoje]\n"
+    "ou frase natural (se LLM ligada): \"Edson ajuste positivo R$1 no pagamento\"\n\n"
+    "Pendências:\n"
+    "/pendencias · detalhar N · confirmar N · cancelar N · corrigir N <campo> <valor>\n\n"
     "/ajuda — esta ajuda"
 )
 
@@ -37,17 +46,20 @@ def build_router(client: FinanceClient, settings: Settings, store=None) -> Route
             data = await coro_factory()
         except FinanceAPIError as e:
             log_event("cmd_erro", kind=e.kind, status=e.status, level="warning")
-            await message.answer(friendly(e))
-            return
+            await message.answer(friendly(e)); return
         except Exception:
             log_event("cmd_excecao", level="error")
-            await message.answer("⚠️ Erro inesperado ao consultar a API financeira.")
-            return
+            await message.answer("⚠️ Erro inesperado ao consultar a API financeira."); return
         try:
             await message.answer(formatter(data))
         except Exception:
             log_event("fmt_excecao", level="error")
             await message.answer("⚠️ Não consegui formatar a resposta da API.")
+
+    def _need_store(m: Message) -> bool:
+        if not store or not store.available:
+            return False
+        return True
 
     # ── Comandos antigos (inalterados) ──
     @router.message(CommandStart())
@@ -79,15 +91,13 @@ def build_router(client: FinanceClient, settings: Settings, store=None) -> Route
     @router.message(Command("whoami"))
     async def _whoami(m: Message): await run_query(m, client.whoami, fmt.whoami)
 
-    # ── Buscas (debug): mostram candidatos crus resumidos ──
-    async def _busca(m: Message, tool_name: str, arg_key: str):
+    # ── Buscas ──
+    async def _busca(m: Message, tool_name: str):
         termo = (m.text or "").split(maxsplit=1)
         if len(termo) < 2:
-            await m.answer("Uso: informe um nome. Ex.: /buscar_fornecedor Areião")
-            return
-        tool = read_tools[tool_name]
+            await m.answer("Uso: informe um nome. Ex.: /buscar_fornecedor Condor"); return
         try:
-            res = await tool.run({arg_key: termo[1].strip()})
+            res = await read_tools[tool_name].run({"nome": termo[1].strip()})
         except FinanceAPIError as e:
             await m.answer(friendly(e)); return
         except Exception:
@@ -95,51 +105,153 @@ def build_router(client: FinanceClient, settings: Settings, store=None) -> Route
         await m.answer(fmt.candidatos_v2(res.data))
 
     @router.message(Command("buscar_funcionario"))
-    async def _bf(m: Message): await _busca(m, "buscar_funcionarios", "nome")
+    async def _bf(m: Message): await _busca(m, "buscar_funcionarios")
 
     @router.message(Command("buscar_fornecedor"))
-    async def _bfor(m: Message): await _busca(m, "buscar_fornecedores", "nome")
+    async def _bfor(m: Message): await _busca(m, "buscar_fornecedores")
 
     @router.message(Command("buscar_conta"))
-    async def _bc(m: Message): await _busca(m, "buscar_contas_bancarias", "nome")
+    async def _bc(m: Message): await _busca(m, "buscar_contas_bancarias")
 
-    # ── Pendências / rascunhos ──
+    # ── Criação manual de rascunho (fallback sem LLM) ──
+    async def _criar_rascunho(m: Message, intent: str, dominio: str, payload: dict):
+        if not _need_store(m):
+            await m.answer("⚠️ Rascunhos indisponíveis (sem persistência). Configure DATA_DIR/volume."); return
+        d = store.create(chat_id=m.chat.id, user_id=m.from_user.id, texto=m.text or "",
+                         dominio=dominio, intent=intent, payload=payload, faltando=[])
+        await m.answer(fmt.detalhe_pendencia(d) +
+                       f"\n\nConfirme: confirmar {d.id}  |  cancelar {d.id}  |  corrigir {d.id} <campo> <valor>")
+
+    @router.message(Command("rh_teste"))
+    async def _rh_teste(m: Message):
+        # /rh_teste <funcionario> <tipo> <vale|pagamento> <valor> [data]
+        a = (m.text or "").split()
+        if len(a) < 5:
+            await m.answer("Uso: /rh_teste <funcionario> <tipo> <vale|pagamento> <valor> [hoje]"); return
+        payload = {"nomeFuncionario": a[1], "tipo": a[2], "destino": a[3], "valorUnit": a[4],
+                   "qtd": 1, "data": (a[5] if len(a) > 5 else "hoje"),
+                   "observacao": "[TESTE_AGENT_READY] Lancamento RH de teste via agente"}
+        await _criar_rascunho(m, "criar_lancamento_rh", "rh", payload)
+
+    @router.message(Command("cp_teste"))
+    async def _cp_teste(m: Message):
+        # /cp_teste <fornecedor> <valor> [data]
+        a = (m.text or "").split()
+        if len(a) < 3:
+            await m.answer("Uso: /cp_teste <fornecedor> <valor> [amanha]"); return
+        payload = {"nomeFornecedor": a[1], "valor": a[2], "dataVencimento": (a[3] if len(a) > 3 else "amanha"),
+                   "descricao": "[TESTE_AGENT_READY] Conta de teste agent-ready",
+                   "observacoes": "[TESTE_AGENT_READY] Criada por teste controlado do agente"}
+        await _criar_rascunho(m, "criar_conta_pagar", "financeiro", payload)
+
+    @router.message(Command("conta_paga_teste"))
+    async def _cpp_teste(m: Message):
+        # /conta_paga_teste <fornecedor> <valor> [pix] [data]
+        a = (m.text or "").split()
+        if len(a) < 3:
+            await m.answer("Uso: /conta_paga_teste <fornecedor> <valor> [pix] [hoje]"); return
+        payload = {"nomeFornecedor": a[1], "valor": a[2],
+                   "formaPagamento": (a[3] if len(a) > 3 else "pix"),
+                   "dataPagamento": (a[4] if len(a) > 4 else "hoje"), "dataVencimento": "hoje",
+                   "descricao": "[TESTE_AGENT_READY] Conta paga de teste agent-ready",
+                   "observacoes": "[TESTE_AGENT_READY] Criada/paga por teste controlado do agente"}
+        await _criar_rascunho(m, "criar_conta_pagar_paga", "financeiro", payload)
+
+    # ── Pendências ──
     @router.message(Command("pendencias"))
     async def _pend(m: Message):
-        if not store or not store.available:
-            await m.answer("⚠️ Rascunhos indisponíveis (sem persistência). Configure DATA_DIR/volume.")
-            return
+        if not _need_store(m):
+            await m.answer("⚠️ Rascunhos indisponíveis (sem persistência)."); return
         store.expire_old()
         await m.answer(fmt.lista_pendencias(store.list_active(m.from_user.id)))
 
-    # ── Texto livre ──
+    # ── Texto livre (mensagens de pendência + parser LLM) ──
     @router.message()
     async def _freeform(m: Message):
-        texto = (m.text or "").strip().lower()
-        # comandos-mensagem de pendências (sem barra)
+        texto = (m.text or "").strip()
         if store and store.available:
-            tratado = await _maybe_pendencia_cmd(m, store, texto)
-            if tratado:
+            if await _maybe_pendencia_cmd(m, store, client, settings, texto.lower()):
                 return
         if not parser.is_enabled():
-            await m.answer("Não entendi. Use /ajuda para ver os comandos disponíveis.")
-            return
-        # LLM parser → rascunho (NUNCA executa POST)
+            await m.answer("Não entendi. Use /ajuda (ou /rh_teste, /cp_teste)."); return
         parsed = await parser.parse(m.text or "")
         if not parsed:
-            await m.answer("Não consegui interpretar agora. Use /ajuda.")
-            return
+            await m.answer("Não consegui interpretar agora. Use /ajuda."); return
         await _tratar_parse(m, store, parsed)
 
     return router
 
 
-async def _maybe_pendencia_cmd(m: Message, store, texto: str) -> bool:
-    """Trata 'pendências/detalhar N/confirmar N/cancelar N' como mensagem. Retorna True se tratou."""
+def _idem_for(draft) -> str:
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d%H%M")
+    return gerar_idempotency_key(chat_id=draft.chat_id, draft_id=draft.id,
+                                 intent=draft.intent or "x", ts_min=ts)
+
+
+async def _confirmar(m: Message, store, client, settings, d) -> None:
+    """Resolve IDs, valida e EXECUTA a escrita (POST). Atualiza status do rascunho."""
+    if d.status == "executado":
+        await m.answer(f"Pendência {d.id} já foi executada (sem duplicar)."); return
+    intent = d.intent or ""
+    if intent not in WRITE_TOOLS:
+        store.set_status(d.id, "confirmado")
+        await m.answer(f"✅ Pendência {d.id} confirmada (sem ação de escrita associada)."); return
+
+    # 1) resolver nomes→IDs + defaults
+    try:
+        payload, faltando, pergunta = await resolve.resolver(client, d)
+    except FinanceAPIError as e:
+        await m.answer(friendly(e)); return
+    store.update(d.id, payload_extraido={**d.payload_extraido, **payload})
+    if pergunta:
+        store.update(d.id, campos_faltando=faltando, status="pendente")
+        await m.answer(f"{pergunta}\n(corrija com: corrigir {d.id} <campo> <valor>)"); return
+
+    # 2) validar payload pela tool
+    tool = WRITE_TOOLS[intent]
+    built = tool.build_payload({**d.payload_extraido, **payload})
+    miss = validar_payload(tool, built)
+    if miss:
+        store.update(d.id, campos_faltando=miss, status="pendente")
+        await m.answer(f"Faltam dados: {', '.join(miss)} (corrigir {d.id} <campo> <valor>)"); return
+
+    # 3) gating + POST
+    if not settings.can_write:
+        motivo = "WRITE_ENABLED=false" if not settings.write_enabled else "sem chave de escrita"
+        store.set_status(d.id, "confirmado")
+        await m.answer(f"✅ Confirmado, mas escrita desabilitada ({motivo}). Rascunho pronto para gravar depois."); return
+
+    idem = d.idempotency_key or _idem_for(d)
+    store.update(d.id, idempotency_key=idem, payload_extraido={**d.payload_extraido, **payload})
+    d = store.get(d.id)
+    d.status = "confirmado"  # exigido pelo gating de executar_write
+    res = await executar_write(client, intent=intent, draft=d, idempotency_key=idem)
+    if res.ok:
+        store.update(d.id, status="executado", resultado_api=res.data)
+        await m.answer(f"✅ {res.text}\n{fmt.resultado_write(res.data)}")
+    else:
+        store.update(d.id, status="erro", erro_api=res.text)
+        await m.answer(f"⚠️ Não gravei: {res.text}")
+
+
+async def _maybe_pendencia_cmd(m: Message, store, client, settings, texto: str) -> bool:
     if texto in ("pendencias", "pendências", "listar pendencias", "listar pendências"):
         store.expire_old()
-        await m.answer(fmt.lista_pendencias(store.list_active(m.from_user.id)))
-        return True
+        await m.answer(fmt.lista_pendencias(store.list_active(m.from_user.id))); return True
+
+    # corrigir N campo valor
+    if texto.startswith("corrigir "):
+        parts = (m.text or "").split(maxsplit=3)
+        if len(parts) < 4 or not parts[1].isdigit():
+            await m.answer("Uso: corrigir N <campo> <valor>"); return True
+        d = store.get(int(parts[1]))
+        if not d or d.user_id != m.from_user.id:
+            await m.answer("Pendência não encontrada."); return True
+        campo, valor = parts[2], parts[3]
+        novo = {**d.payload_extraido, campo: valor}
+        store.update(d.id, payload_extraido=novo)
+        await m.answer(fmt.detalhe_pendencia(store.get(d.id))); return True
+
     for verbo in ("detalhar", "cancelar", "confirmar"):
         if texto.startswith(verbo + " "):
             resto = texto[len(verbo) + 1:].strip()
@@ -152,40 +264,26 @@ async def _maybe_pendencia_cmd(m: Message, store, texto: str) -> bool:
                 await m.answer(fmt.detalhe_pendencia(d))
             elif verbo == "cancelar":
                 store.set_status(d.id, "cancelado")
-                await m.answer(f"❌ Pendência {d.id} cancelada.")
+                await m.answer(f"❌ Pendência {d.id} cancelada. (nenhum POST executado)")
             elif verbo == "confirmar":
-                # Confirmação humana: marca confirmado. A EXECUÇÃO real (POST) é gated por
-                # WRITE_ENABLED + chave de escrita (tools_write.executar_write).
-                store.set_status(d.id, "confirmado")
-                await m.answer(
-                    f"✅ Pendência {d.id} confirmada.\n"
-                    "ℹ️ Execução de escrita ocorre apenas com WRITE_ENABLED=true e chave de escrita."
-                )
+                await _confirmar(m, store, client, settings, d)
             return True
     return False
 
 
 async def _tratar_parse(m: Message, store, parsed: dict) -> None:
-    """Mostra resumo do que a LLM entendeu e guarda rascunho (não grava)."""
     intent = parsed.get("intent", "indefinido")
     if intent.startswith("consultar_"):
-        await m.answer("Entendi uma consulta. Use o comando correspondente (ex.: /resumo).")
-        return
-    if intent in ("indefinido", None):
-        q = parsed.get("question")
-        await m.answer(q or "Não entendi o suficiente. Pode reformular?")
-        return
+        await m.answer("Entendi uma consulta. Use o comando (ex.: /resumo)."); return
+    if intent in ("indefinido", None) or intent not in WRITE_TOOLS:
+        await m.answer(parsed.get("question") or "Não entendi o suficiente. Pode reformular?"); return
     if not store or not store.available:
-        await m.answer("⚠️ Entendi um lançamento, mas rascunhos estão indisponíveis (sem persistência).")
-        return
-    dominio = ("rh" if "rh" in intent or "lancamento" in intent else
-               "terceirizado" if "terceiriz" in intent else "financeiro")
-    d = store.create(
-        chat_id=m.chat.id, user_id=m.from_user.id, texto=m.text or "",
-        dominio=dominio, intent=intent, payload=parsed.get("fields") or {},
-        faltando=parsed.get("missing") or [],
-    )
+        await m.answer("⚠️ Entendi um lançamento, mas rascunhos estão indisponíveis."); return
+    dominio = ("rh" if "lancamento" in intent else "financeiro")
+    d = store.create(chat_id=m.chat.id, user_id=m.from_user.id, texto=m.text or "",
+                     dominio=dominio, intent=intent, payload=parsed.get("fields") or {},
+                     faltando=parsed.get("missing") or [])
     if parsed.get("shouldAsk") and parsed.get("question"):
-        await m.answer(f"{parsed['question']}\n\n(rascunho #{d.id} salvo — veja em /pendencias)")
+        await m.answer(f"{parsed['question']}\n(rascunho #{d.id} — veja /pendencias)")
     else:
-        await m.answer(fmt.detalhe_pendencia(d) + "\n\nResponda: confirmar " + str(d.id) + " | cancelar " + str(d.id))
+        await m.answer(fmt.detalhe_pendencia(d) + f"\n\nConfirme: confirmar {d.id} | cancelar {d.id}")

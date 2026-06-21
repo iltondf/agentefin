@@ -19,6 +19,14 @@ import httpx
 
 from financebot.logging_setup import log_event
 
+# Best-effort: usa o trust store do SO para TLS (resolve cadeias via AIA em alguns
+# ambientes Windows/dev). Inofensivo na VPS Linux. Nunca enfraquece a verificação.
+try:  # pragma: no cover
+    import truststore as _truststore
+    _truststore.inject_into_ssl()
+except Exception:  # pragma: no cover
+    pass
+
 # errorCodes padronizados da API nova (seção 12 do doc agent-ready).
 ERROR_CODES = {
     "AMBIGUO", "NAO_ENCONTRADO", "FALTA_CONTA_ORIGEM", "FALTA_FORMA_PAGAMENTO",

@@ -13,3 +13,4 @@
 | 0007 | `CHECKPOINT_PLANEJAMENTO_SECRETARIA_OPERACIONAL.md` | Planejamento: secretária operacional (inbox + rascunhos) |
 | 0008 | `CHECKPOINT_PLANEJAMENTO_AGENT_READY_WRITE.md` | Planejamento agent-ready: write tools + rascunhos + confirmação (consolida 0006/0007 com API real) |
 | 0009 | `CHECKPOINT_IMPLEMENTACAO_AGENT_READY_TOOLS.md` | Implementação agent-ready: cliente 2-envelopes, registry, rascunhos SQLite, parser, write tools (gated). 51 testes |
+| 0010 | `CHECKPOINT_TELEGRAM_FLUXO_E_ESCRITA_REAL.md` | Fluxo Telegram ligado (confirmar→POST) + validação real (#291/#929/#930), idempotência. 57 testes |

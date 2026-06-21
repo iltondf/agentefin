@@ -60,10 +60,30 @@ validar `/whoami`. Atualizar após `git push`: opção **3**. Ver `OPERADOR_VPS_
   - **21 read tools** (antigas+novas) + **6 write tools** com **tripla trava** (WRITE_ENABLED+chave,
     confirmação humana, payload válido). **Rascunhos SQLite** (`/app/data`, volume) + `/pendencias`.
     **Defaults** (`defaults.yaml`). **LLM parser** (JSON). **Comandos antigos preservados.**
-  - **51 testes** verdes. Docs: `arquitetura/*_IMPLEMENTADO.md`, `seguranca/WRITE_RUNTIME_GUARDRAILS.md`,
-    `operacao/COMO_USAR_*`, `operacao/EVIDENCIAS_AGENT_READY_WRITE_TESTS.md`.
-  - **Estado de segurança:** `WRITE_ENABLED=false`, `LLM_ENABLED=false` por padrão. **POST real
-    NÃO executado.** Escrita real exige: backup + `BRGLOBAL_WRITE_API_KEY` + `/whoami` write +
-    frase `AUTORIZO_POST_REAL_AGENT_READY`.
+  - **Fluxo de escrita ligado:** `confirmar N` → resolve nomes→IDs (busca) → valida →
+    `POST` com Idempotency-Key. Comandos manuais sem LLM: `/rh_teste`, `/cp_teste`,
+    `/conta_paga_teste`, `corrigir N <campo> <valor>` (ver `RASCUNHOS_PENDENCIAS`/`COMO_USAR_*`).
+  - **Validação real (2026-06-21):** POSTs reais executados com autorização — RH **#291**,
+    conta a pagar **#929** (pendente) e **#930** (paga), todos `[TESTE_AGENT_READY]` R$ 1,00;
+    idempotência (replay não duplica; conflito→409) confirmada. Fluxo Telegram exercitado pelos
+    handlers reais (`EVIDENCIAS_AGENT_READY_TELEGRAM_TESTS.md`). **Não há endpoint de apagar** via
+    agente — registros de teste removíveis só pelo web/restore.
+  - **57 testes** verdes. Docs: `arquitetura/*_IMPLEMENTADO.md`, `seguranca/WRITE_RUNTIME_GUARDRAILS.md`,
+    `operacao/COMO_USAR_*`, `operacao/EVIDENCIAS_AGENT_READY_{WRITE,TELEGRAM}_TESTS.md`.
+  - **Estado de config:** `.env` do bot com `WRITE_ENABLED=false`, `LLM_ENABLED=false` por padrão.
+  - ⚠️ **Deploy na VPS pendente** (sem SSH nesta sessão): ver §Deploy abaixo. **Rotacionar a chave
+    write id 17 "agentetelegram"** (apareceu no chat).
 - Planejamento que originou (contexto): `PLANO_AGENT_READY_FASE_WRITE.md` (0008), consolidando 0006/0007.
 - Roadmap (outros): resumos automáticos (scheduler — **não ativar sem decisão**), contas a receber.
+
+## Deploy / ativar no Telegram (passos do operador na VPS)
+```bash
+cd ~/agentefin          # ou o diretório do clone (ex.: /opt/agentefin)
+git pull --ff-only origin main
+bash scripts/ops/agentefin-vps.sh
+# opção 2 (configurar .env): TELEGRAM_BOT_TOKEN, ALLOWED_USER_IDS=8646895490,
+#   BRGLOBAL_API_BASE_URL=https://lixo.brglobal.com.br/api/agent/v1,
+#   BRGLOBAL_WRITE_API_KEY=<nova/rotacionada>, WRITE_ENABLED=true, DRAFTS_ENABLED=true,
+#   DATA_DIR=/app/data, LLM_ENABLED=false (ou true + OPENROUTER_API_KEY+LLM_MODEL)
+# opção 3 (deploy/update) → opção 8 e 9 (validar /whoami read e write) → testar no Telegram
+```

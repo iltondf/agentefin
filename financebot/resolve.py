@@ -1,0 +1,148 @@
+"""Resolução determinística de rascunho → payload pronto para escrita.
+
+Transforma campos "humanos" do rascunho (nomeFuncionario, nomeFornecedor, datas
+relativas) em IDs reais (via tools de busca) e aplica defaults (obra/conta/categoria/
+forma/data). NUNCA inventa ID: se a busca for ambígua/vazia, devolve pergunta.
+
+Retorna (payload, faltando, pergunta):
+- payload: dict pronto para tools_write (ou parcial)
+- faltando: lista de campos ainda ausentes
+- pergunta: str para o usuário (ambiguidade/campo crítico) ou None
+"""
+from __future__ import annotations
+
+from datetime import date, timedelta
+from typing import Any
+
+from financebot import defaults
+from financebot.client import FinanceAPIError, FinanceClient
+
+
+def _hoje() -> str:
+    return date.today().isoformat()
+
+
+def _amanha() -> str:
+    return (date.today() + timedelta(days=1)).isoformat()
+
+
+def normalizar_data(v: Any) -> str:
+    s = str(v or "").strip().lower()
+    if s in ("", "hoje", "today"):
+        return _hoje()
+    if s in ("amanha", "amanhã", "tomorrow"):
+        return _amanha()
+    return str(v)
+
+
+def _cands(v2: Any) -> list:
+    d = v2.get("data") if isinstance(v2, dict) else None
+    if isinstance(d, dict):
+        for k in ("candidatos",):
+            if isinstance(d.get(k), list):
+                return d[k]
+    return []
+
+
+async def _resolver_unico(client: FinanceClient, path: str, nome: str, rotulo: str):
+    """Retorna (id, erro|None). Ambíguo/vazio → (None, pergunta)."""
+    try:
+        res = await client.get_v2(path, {"nome": nome})
+    except FinanceAPIError as e:
+        return None, f"Erro ao buscar {rotulo}: {e.message}"
+    cands = _cands(res)
+    if not cands:
+        return None, f"Não encontrei {rotulo} '{nome}'. Confira o nome."
+    if len(cands) > 1:
+        nomes = ", ".join(f"{c.get('nome')}(id {c.get('id') or c.get('funcionarioId')})" for c in cands[:8])
+        return None, f"Há mais de um {rotulo} para '{nome}': {nomes}. Qual o id?"
+    c = cands[0]
+    return (c.get("id") or c.get("funcionarioId")), None
+
+
+async def resolver(client: FinanceClient, draft) -> tuple[dict, list, str | None]:
+    intent = draft.intent or ""
+    p = dict(draft.payload_extraido or {})
+
+    if intent == "criar_lancamento_rh":
+        return await _rh(client, p)
+    if intent in ("criar_conta_pagar", "criar_conta_pagar_paga"):
+        return await _cp(client, p, paga=(intent == "criar_conta_pagar_paga"))
+    return p, [], None  # intents sem resolução específica
+
+
+async def _rh(client: FinanceClient, p: dict) -> tuple[dict, list, str | None]:
+    out: dict = {}
+    # funcionário: id explícito ou por nome
+    if p.get("funcionarioId"):
+        out["funcionarioId"] = int(p["funcionarioId"])
+    elif p.get("nomeFuncionario"):
+        fid, err = await _resolver_unico(client, "rh/funcionarios/buscar", p["nomeFuncionario"], "funcionário")
+        if err:
+            return out, ["funcionarioId"], err
+        out["funcionarioId"] = fid
+    else:
+        return out, ["funcionarioId"], "Para qual funcionário?"
+
+    out["tipo"] = p.get("tipo") or "ajuste_positivo"
+    out["data"] = normalizar_data(p.get("data"))
+    out["qtd"] = p.get("qtd", 1)
+    out["valorUnit"] = p.get("valorUnit", p.get("valor"))
+    if p.get("destino"):
+        out["destino"] = p["destino"]
+    else:
+        dest = defaults.get("rh.destinoPadrao")
+        if dest:
+            out["destino"] = dest
+    if p.get("observacao"):
+        out["observacao"] = p["observacao"]
+
+    faltando = [k for k in ("funcionarioId", "tipo", "data", "valorUnit") if out.get(k) in (None, "")]
+    if not out.get("destino"):
+        return out, faltando + ["destino"], "Isso vai para VALE ou PAGAMENTO?"
+    return out, faltando, None
+
+
+async def _cp(client: FinanceClient, p: dict, *, paga: bool) -> tuple[dict, list, str | None]:
+    out: dict = {"pago": paga}
+    # fornecedor
+    if p.get("fornecedorId"):
+        out["fornecedorId"] = int(p["fornecedorId"])
+    elif p.get("nomeFornecedor"):
+        fid, err = await _resolver_unico(client, "financeiro/fornecedores/buscar", p["nomeFornecedor"], "fornecedor")
+        if err:
+            return out, ["fornecedorId"], err
+        out["fornecedorId"] = fid
+    else:
+        return out, ["fornecedorId"], "De qual fornecedor?"
+
+    # categoria: explícita ou por palavra (default)
+    out["categoriaId"] = p.get("categoriaId") or defaults.categoria_por_palavra(
+        f"{p.get('descricao','')} {p.get('texto','')}")
+    # obra default (opcional)
+    if p.get("obraId"):
+        out["obraId"] = p["obraId"]
+    elif defaults.get("obraPadraoId"):
+        out["obraId"] = defaults.get("obraPadraoId")
+
+    out["descricao"] = p.get("descricao") or "[TESTE_AGENT_READY] conta via agente"
+    out["valor"] = p.get("valor", p.get("valorUnit"))
+    out["dataVencimento"] = normalizar_data(p.get("dataVencimento") or ("hoje" if paga else "amanha"))
+    if p.get("observacoes"):
+        out["observacoes"] = p["observacoes"]
+
+    if paga:
+        out["formaPagamento"] = p.get("formaPagamento") or defaults.get("formaPagamentoPadrao") or "pix"
+        out["dataPagamento"] = normalizar_data(p.get("dataPagamento") or "hoje")
+        out["contaBancariaId"] = p.get("contaBancariaId") or defaults.get("contaBancariaPadraoId")
+
+    req = ["fornecedorId", "categoriaId", "valor", "dataVencimento"]
+    if paga:
+        req += ["contaBancariaId", "formaPagamento", "dataPagamento"]
+    faltando = [k for k in req if out.get(k) in (None, "")]
+    pergunta = None
+    if "categoriaId" in faltando:
+        pergunta = "Qual a categoria? (informe o id ou configure defaults.yaml)"
+    elif "contaBancariaId" in faltando:
+        pergunta = "De qual conta bancária saiu o pagamento? (informe o id)"
+    return out, faltando, pergunta

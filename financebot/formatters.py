@@ -235,6 +235,25 @@ def lista_pendencias(drafts: list) -> str:
     return "\n".join(linhas)
 
 
+def resultado_write(res: Any) -> str:
+    """Resumo do retorno de uma escrita (v2 {data:{...},message})."""
+    if not isinstance(res, dict):
+        return ""
+    msg = res.get("message") or ""
+    d = res.get("data") if isinstance(res.get("data"), dict) else res
+    ids = []
+    for k in ("lancamentoId", "contaPagarId", "servicoId", "funcionarioId", "pagamentoContaPagarId"):
+        if isinstance(d, dict) and d.get(k) is not None:
+            ids.append(f"{k}={d[k]}")
+    warns = res.get("warnings") or []
+    out = msg or (" ".join(ids))
+    if ids and msg:
+        out += f"\n  ({', '.join(ids)})"
+    for w in warns:
+        out += f"\n  ♻️ {w}"
+    return out
+
+
 def detalhe_pendencia(d) -> str:
     p = d.payload_extraido or {}
     linhas = [f"📄 Pendência #{d.id} [{d.status}] — {d.dominio}",

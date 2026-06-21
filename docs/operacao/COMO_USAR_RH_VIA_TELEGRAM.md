@@ -21,5 +21,13 @@
 adiantamento|ajuste_positivo|ajuste_negativo), `destino` (vale|pagamento), `data`, `qtd`,
 `valorUnit`, `obraId` (default), `observacao`.
 
+## Comando manual (sem LLM)
+`/rh_teste <funcionario> <tipo> <vale|pagamento> <valor> [hoje]`
+Ex.: `/rh_teste Edson ajuste_positivo pagamento 1 hoje` → cria rascunho; depois `confirmar N`.
+
 ## Debug
 `/buscar_funcionario <nome>` lista candidatos com id/cargo.
+
+## Validado (2026-06-21)
+Fluxo real: rascunho → `confirmar N` → `POST /rh/lancamentos` → **lançamento #291** (Edson,
+ajuste_positivo, R$ 1,00), replay idempotente sem duplicar. Ver `EVIDENCIAS_AGENT_READY_TELEGRAM_TESTS.md`.
