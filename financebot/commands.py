@@ -254,7 +254,67 @@ def _aguardando(store, uid: int) -> list:
             if d.status in ("aguardando_confirmacao", "pendente", "confirmado")]
 
 
+# Campos do rascunho que aceitam resposta de texto livre (slot-filling).
+_CAMPO_TEXTO = {"descricao", "nomeFornecedor", "nomeFuncionario", "observacao", "observacoes"}
+_CAMPO_NUM = {"valor", "valorUnit", "qtd", "categoriaId", "obraId", "contaBancariaId"}
+
+
+def _set_aguardando(store, d, campo) -> None:
+    """Marca que o rascunho d espera a resposta do campo (slot-filling)."""
+    store.update(d.id, status="pendente",
+                 payload_extraido={**d.payload_extraido, "_aguardando_campo": campo})
+
+
+def _draft_aguardando_campo(store, uid: int):
+    """Retorna (draft, campo) do rascunho pendente que espera uma resposta; ou (None, None)."""
+    for d in store.list_active(uid):
+        if d.status == "pendente":
+            campo = (d.payload_extraido or {}).get("_aguardando_campo")
+            if campo:
+                return d, campo
+    return None, None
+
+
+async def _preencher_campo(m: Message, store, client, settings, d, campo: str, valor_txt: str) -> None:
+    """Preenche o campo aguardado com a resposta do usuário e re-resolve o rascunho."""
+    valor: object = valor_txt.strip()
+    if campo in _CAMPO_NUM:
+        v = valor.replace("R$", "").replace(".", "").replace(",", ".").strip()
+        try:
+            valor = float(v) if ("." in v) else int(v)
+        except ValueError:
+            pass  # mantém texto; validação pega depois
+    if campo == "destino":
+        low = valor_txt.lower()
+        valor = "vale" if "vale" in low else "pagamento" if "pag" in low else valor_txt.strip()
+    novo = {**d.payload_extraido, campo: valor}
+    novo.pop("_aguardando_campo", None)
+    store.update(d.id, payload_extraido=novo)
+    # re-resolve para ver se ainda falta algo
+    d = store.get(d.id)
+    try:
+        payload, faltando, pergunta = await resolve.resolver(client, d)
+        store.update(d.id, payload_extraido={**d.payload_extraido, **payload})
+    except FinanceAPIError:
+        pergunta, faltando = None, []
+    if pergunta:
+        _set_aguardando(store, d, (faltando or [None])[0])
+        await m.answer(f"{pergunta}\n(rascunho #{d.id})"); return
+    store.set_status(d.id, "aguardando_confirmacao")
+    await m.answer(fmt.resumo_rascunho(store.get(d.id)) +
+                   "\n\nResponda CONFIRMAR para gravar ou CANCELAR.")
+
+
 async def _maybe_pendencia_cmd(m: Message, store, client, settings, texto: str) -> bool:
+    # Slot-filling: se há rascunho esperando uma resposta, capturá-la primeiro —
+    # exceto se o usuário disse confirmar/cancelar/pendências (palavras de controle).
+    if texto not in _CONFIRM_WORDS and texto not in _CANCEL_WORDS and texto not in _PEND_WORDS \
+            and not texto.startswith(("confirmar ", "cancelar ", "detalhar ", "corrigir ")):
+        d, campo = _draft_aguardando_campo(store, m.from_user.id)
+        if d and campo:
+            await _preencher_campo(m, store, client, settings, d, campo, m.text or "")
+            return True
+
     if texto in _PEND_WORDS:
         store.expire_old()
         await m.answer(fmt.lista_pendencias(store.list_active(m.from_user.id))); return True
@@ -340,10 +400,11 @@ async def _tratar_parse(m: Message, store, client, parsed: dict) -> None:
                      faltando=parsed.get("missing") or [])
     pre = (reply + "\n\n") if reply else ""   # mostra o que a LLM entendeu/calculou
 
-    # Se a LLM já sabe que falta algo essencial, pergunta direto.
+    # Se a LLM já sabe que falta algo essencial, pergunta direto (e guarda o campo esperado).
     if parsed.get("shouldAsk") and parsed.get("question"):
-        store.set_status(d.id, "pendente")
-        await m.answer(f"{pre}{parsed['question']}\n(rascunho #{d.id} — depois diga 'confirmar')"); return
+        campo = (parsed.get("missing") or [None])[0]
+        _set_aguardando(store, d, campo)
+        await m.answer(f"{pre}{parsed['question']}\n(rascunho #{d.id} — responda, ou diga 'cancelar')"); return
     # Resolve nomes→IDs + defaults para mostrar um resumo já com o que falta.
     try:
         payload, faltando, pergunta = await resolve.resolver(client, d)
@@ -351,7 +412,7 @@ async def _tratar_parse(m: Message, store, client, parsed: dict) -> None:
     except FinanceAPIError:
         pergunta, faltando = None, []
     if pergunta:
-        store.set_status(d.id, "pendente")
+        _set_aguardando(store, d, (faltando or [None])[0])
         await m.answer(f"{pre}{pergunta}\n(rascunho #{d.id} — depois diga 'confirmar')"); return
     await m.answer(pre + fmt.resumo_rascunho(store.get(d.id)) +
                    "\n\nResponda CONFIRMAR para gravar ou CANCELAR.")
