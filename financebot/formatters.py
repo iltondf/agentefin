@@ -254,11 +254,46 @@ def resultado_write(res: Any) -> str:
     return out
 
 
+_CAMPO_LABEL = {
+    "nomeFuncionario": "Funcionário", "funcionarioId": "Funcionário (id)",
+    "nomeFornecedor": "Fornecedor", "fornecedorId": "Fornecedor (id)",
+    "tipo": "Tipo", "destino": "Destino", "qtd": "Quantidade", "valorUnit": "Valor unitário",
+    "valor": "Valor", "data": "Data", "dataVencimento": "Vencimento", "dataPagamento": "Pago em",
+    "formaPagamento": "Forma", "categoriaId": "Categoria (id)", "obraId": "Obra (id)",
+    "contaBancariaId": "Conta (id)", "descricao": "Descrição",
+}
+_INTENT_LABEL = {
+    "criar_lancamento_rh": "Lançamento RH", "criar_conta_pagar": "Conta a pagar (pendente)",
+    "criar_conta_pagar_paga": "Conta paga",
+}
+
+
+def resumo_rascunho(d) -> str:
+    """Resumo amigável de um rascunho para o usuário confirmar (mostra defaults usados)."""
+    p = d.payload_extraido or {}
+    linhas = [f"📝 Entendi — {_INTENT_LABEL.get(d.intent, d.intent)} (rascunho #{d.id}):", ""]
+    ordem = ["nomeFuncionario", "funcionarioId", "nomeFornecedor", "fornecedorId", "tipo",
+             "destino", "qtd", "valorUnit", "valor", "descricao", "data", "dataVencimento",
+             "dataPagamento", "formaPagamento", "categoriaId", "obraId", "contaBancariaId"]
+    for k in ordem:
+        if k in p and p[k] not in (None, ""):
+            v = brl(p[k]) if k in ("valor", "valorUnit") else p[k]
+            linhas.append(f"  {_CAMPO_LABEL.get(k, k)}: {v}")
+    usados = p.get("_defaults_usados") or []
+    for u in usados:
+        linhas.append(f"  ℹ️ Usei {u}")
+    if d.campos_faltando:
+        linhas.append(f"\n⚠️ Falta: {', '.join(d.campos_faltando)}")
+    return "\n".join(linhas)
+
+
 def detalhe_pendencia(d) -> str:
     p = d.payload_extraido or {}
     linhas = [f"📄 Pendência #{d.id} [{d.status}] — {d.dominio}",
               f"Intenção: {d.intent or '—'}", f"Texto: {d.texto_original}", ""]
     for k, v in p.items():
+        if k.startswith("_"):  # campos internos (ex.: _defaults_usados)
+            continue
         linhas.append(f"  {k}: {v}")
     if d.campos_faltando:
         linhas.append(f"\n⚠️ Faltando: {', '.join(d.campos_faltando)}")

@@ -176,8 +176,8 @@ def build_router(client: FinanceClient, settings: Settings, store=None) -> Route
             await m.answer("Não entendi. Use /ajuda (ou /rh_teste, /cp_teste)."); return
         parsed = await parser.parse(m.text or "")
         if not parsed:
-            await m.answer("Não consegui interpretar agora. Use /ajuda."); return
-        await _tratar_parse(m, store, parsed)
+            await m.answer("Não consegui interpretar agora. Tente de novo ou use /ajuda."); return
+        await _tratar_parse(m, store, client, parsed)
 
     return router
 
@@ -234,10 +234,44 @@ async def _confirmar(m: Message, store, client, settings, d) -> None:
         await m.answer(f"⚠️ Não gravei: {res.text}")
 
 
+# Frases naturais → ação de pendência (sem número).
+_CONFIRM_WORDS = {"confirmar", "confirma", "confirmo", "pode confirmar", "sim", "ok", "isso", "pode gravar"}
+_CANCEL_WORDS = {"cancelar", "cancela", "cancelo", "não", "nao", "deixa pra la", "deixa pra lá", "esquece"}
+_PEND_WORDS = {"pendencias", "pendências", "listar pendencias", "listar pendências",
+               "o que esta pendente", "o que está pendente", "resumo do dia",
+               "mostra o que ficou para confirmar", "o que ficou pendente"}
+
+
+def _aguardando(store, uid: int) -> list:
+    return [d for d in store.list_active(uid)
+            if d.status in ("aguardando_confirmacao", "pendente", "confirmado")]
+
+
 async def _maybe_pendencia_cmd(m: Message, store, client, settings, texto: str) -> bool:
-    if texto in ("pendencias", "pendências", "listar pendencias", "listar pendências"):
+    if texto in _PEND_WORDS:
         store.expire_old()
         await m.answer(fmt.lista_pendencias(store.list_active(m.from_user.id))); return True
+
+    # Confirmação NATURAL (sem número): age no único rascunho em aberto.
+    if texto in _CONFIRM_WORDS:
+        abertos = _aguardando(store, m.from_user.id)
+        if not abertos:
+            return False  # nada a confirmar → deixa cair no parser/ajuda
+        if len(abertos) > 1:
+            await m.answer("Você tem mais de uma pendência. Qual confirmar? Ex.: confirmar "
+                           + str(abertos[-1].id) + "\n\n" + fmt.lista_pendencias(abertos)); return True
+        await _confirmar(m, store, client, settings, abertos[0]); return True
+
+    # Cancelamento NATURAL (sem número).
+    if texto in _CANCEL_WORDS:
+        abertos = _aguardando(store, m.from_user.id)
+        if not abertos:
+            return False
+        if len(abertos) > 1:
+            await m.answer("Você tem mais de uma pendência. Qual cancelar? Ex.: cancelar "
+                           + str(abertos[-1].id)); return True
+        store.set_status(abertos[0].id, "cancelado")
+        await m.answer(f"❌ Pendência {abertos[0].id} cancelada. (nenhum POST executado)"); return True
 
     # corrigir N campo valor
     if texto.startswith("corrigir "):
@@ -271,19 +305,31 @@ async def _maybe_pendencia_cmd(m: Message, store, client, settings, texto: str) 
     return False
 
 
-async def _tratar_parse(m: Message, store, parsed: dict) -> None:
+async def _tratar_parse(m: Message, store, client, parsed: dict) -> None:
     intent = parsed.get("intent", "indefinido")
     if intent.startswith("consultar_"):
-        await m.answer("Entendi uma consulta. Use o comando (ex.: /resumo)."); return
+        await m.answer("Entendi uma consulta. Use o comando (ex.: /resumo, /hoje)."); return
     if intent in ("indefinido", None) or intent not in WRITE_TOOLS:
-        await m.answer(parsed.get("question") or "Não entendi o suficiente. Pode reformular?"); return
+        await m.answer(parsed.get("question") or "Não entendi. Pode reformular? (ou /ajuda)"); return
     if not store or not store.available:
-        await m.answer("⚠️ Entendi um lançamento, mas rascunhos estão indisponíveis."); return
+        await m.answer("⚠️ Entendi um lançamento, mas rascunhos estão indisponíveis (sem volume)."); return
     dominio = ("rh" if "lancamento" in intent else "financeiro")
     d = store.create(chat_id=m.chat.id, user_id=m.from_user.id, texto=m.text or "",
                      dominio=dominio, intent=intent, payload=parsed.get("fields") or {},
                      faltando=parsed.get("missing") or [])
+    # Se a LLM já sabe que falta algo essencial, pergunta direto.
     if parsed.get("shouldAsk") and parsed.get("question"):
-        await m.answer(f"{parsed['question']}\n(rascunho #{d.id} — veja /pendencias)")
-    else:
-        await m.answer(fmt.detalhe_pendencia(d) + f"\n\nConfirme: confirmar {d.id} | cancelar {d.id}")
+        store.set_status(d.id, "pendente")
+        await m.answer(f"{parsed['question']}\n(rascunho #{d.id} — depois é só dizer 'confirmar')"); return
+    # Resolve nomes→IDs + defaults para mostrar um resumo já com o que falta.
+    try:
+        payload, faltando, pergunta = await resolve.resolver(client, d)
+        store.update(d.id, payload_extraido={**d.payload_extraido, **payload})
+    except FinanceAPIError:
+        pergunta, faltando = None, []
+    if pergunta:
+        store.set_status(d.id, "pendente")
+        await m.answer(f"{pergunta}\n(rascunho #{d.id} — depois diga 'confirmar')"); return
+    await m.answer(fmt.resumo_rascunho(store.get(d.id)) +
+                   "\n\nResponda CONFIRMAR para gravar ou CANCELAR. (ou 'confirmar "
+                   + str(d.id) + "')")

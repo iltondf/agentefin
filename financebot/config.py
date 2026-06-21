@@ -92,6 +92,11 @@ class Settings(BaseSettings):
         return self.llm_api_key or self.openrouter_api_key
 
     @property
+    def llm_effective_model(self) -> str:
+        """Modelo LLM; cai para um modelo barato/confiável p/ JSON se não definido."""
+        return self.llm_model or "openai/gpt-4o-mini"
+
+    @property
     def can_write(self) -> bool:
         """True só se escrita habilitada E chave de escrita presente."""
         return self.write_enabled and bool(self.write_key)

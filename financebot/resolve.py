@@ -116,14 +116,22 @@ async def _cp(client: FinanceClient, p: dict, *, paga: bool) -> tuple[dict, list
     else:
         return out, ["fornecedorId"], "De qual fornecedor?"
 
-    # categoria: explícita ou por palavra (default)
-    out["categoriaId"] = p.get("categoriaId") or defaults.categoria_por_palavra(
-        f"{p.get('descricao','')} {p.get('texto','')}")
+    usados: list[str] = []  # defaults aplicados (mostrar no resumo)
+    # categoria: explícita, ou por palavra-chave (categoriaPalavra/descrição)
+    if p.get("categoriaId"):
+        out["categoriaId"] = p["categoriaId"]
+    else:
+        termo = f"{p.get('categoriaPalavra','')} {p.get('descricao','')} {p.get('texto','')}"
+        cat = defaults.categoria_por_palavra(termo)
+        if cat:
+            out["categoriaId"] = cat
+            usados.append(f"categoria provável: {cat}")
     # obra default (opcional)
     if p.get("obraId"):
         out["obraId"] = p["obraId"]
     elif defaults.get("obraPadraoId"):
         out["obraId"] = defaults.get("obraPadraoId")
+        usados.append(f"obra padrão: {defaults.get('obraPadraoId')}")
 
     out["descricao"] = p.get("descricao") or "[TESTE_AGENT_READY] conta via agente"
     out["valor"] = p.get("valor", p.get("valorUnit"))
@@ -132,9 +140,18 @@ async def _cp(client: FinanceClient, p: dict, *, paga: bool) -> tuple[dict, list
         out["observacoes"] = p["observacoes"]
 
     if paga:
-        out["formaPagamento"] = p.get("formaPagamento") or defaults.get("formaPagamentoPadrao") or "pix"
+        if p.get("formaPagamento"):
+            out["formaPagamento"] = p["formaPagamento"]
+        else:
+            out["formaPagamento"] = defaults.get("formaPagamentoPadrao") or "pix"
+            usados.append(f"forma de pagamento: {out['formaPagamento']}")
         out["dataPagamento"] = normalizar_data(p.get("dataPagamento") or "hoje")
-        out["contaBancariaId"] = p.get("contaBancariaId") or defaults.get("contaBancariaPadraoId")
+        if p.get("contaBancariaId"):
+            out["contaBancariaId"] = p["contaBancariaId"]
+        elif defaults.get("contaBancariaPadraoId"):
+            out["contaBancariaId"] = defaults.get("contaBancariaPadraoId")
+            usados.append(f"conta bancária padrão: {defaults.get('contaBancariaPadraoId')}")
+    out["_defaults_usados"] = usados
 
     req = ["fornecedorId", "categoriaId", "valor", "dataVencimento"]
     if paga:

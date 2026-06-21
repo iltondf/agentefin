@@ -2,6 +2,19 @@
 
 Formato: data — fase — mudança.
 
+## 2026-06-21 — Linguagem natural (LLM) como fluxo principal no Telegram
+
+- **Frase livre → LLM parser → rascunho → resolve (IDs+defaults) → resumo → confirmar/cancelar
+  natural → POST.** Parser com prompt robusto (RH/conta pendente/conta paga, `categoriaPalavra`,
+  valores BR), **modelo fallback `openai/gpt-4o-mini`** (`LLM_MODEL` vazio), `response_format=json_object`.
+- **Confirmação/cancelamento natural** sem número: "confirmar"/"sim"/"ok" e "cancelar"/"não"
+  agem no único rascunho aberto (vários → pede o número). Resumo amigável mostra **defaults usados**
+  ("Usei obra padrão: 4", "categoria provável: 15", "conta padrão: 5", "forma: pix").
+- `defaults.yaml` preenchido (obra 4, conta 5, categorias→15, rh.destinoPadrao=pagamento).
+- **64 testes** (parser request/parse, confirm/cancel natural, categoriaPalavra+defaults).
+  Docs: `COMO_USAR_LLM_TELEGRAM.md`, `EVIDENCIAS_AGENT_READY_LLM_TELEGRAM_TESTS.md`. Comandos
+  manuais seguem como fallback. Ativação da LLM = `.env` da VPS (OPENROUTER_API_KEY).
+
 ## 2026-06-21 — Fluxo Telegram ligado + validação real de escrita
 
 - **`confirmar N` agora EXECUTA a escrita**: resolve nomes→IDs (busca), valida, `POST` com
