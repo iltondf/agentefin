@@ -297,6 +297,22 @@ def _reclassificar_conta(intent: str, texto: str) -> str:
     return "criar_conta_pagar" if (tem_venc and not tem_pago) else intent
 
 
+# Campos que só fazem sentido em conta PAGA (não devem aparecer numa pendente).
+_CAMPOS_PAGAMENTO = ("dataPagamento", "formaPagamento", "contaBancariaId",
+                     "contaBancariaAlias", "contaBancariaFinal")
+
+
+def _sanitizar_fields(intent: str, fields: dict | None) -> dict:
+    """Remove de uma conta a pagar PENDENTE os campos de pagamento que a LLM possa ter
+    devolvido (ex.: dataPagamento alucinado). Sem isso, o valor cru vaza no resumo
+    porque o resolve da pendente não processa esses campos."""
+    f = dict(fields or {})
+    if intent == "criar_conta_pagar":  # pendente
+        for k in _CAMPOS_PAGAMENTO:
+            f.pop(k, None)
+    return f
+
+
 def _parece_resposta_curta(texto: str) -> bool:
     """True se a mensagem parece RESPOSTA a uma pergunta (curta, sem verbo de novo lançamento).
     Evita que 'comprei 11 cabos...' seja capturado como resposta de um rascunho pendente."""
@@ -500,7 +516,8 @@ async def _tratar_parse(m: Message, store, client, parsed: dict) -> None:
 
     dominio = ("rh" if "lancamento" in intent else "financeiro")
     d = store.create(chat_id=m.chat.id, user_id=m.from_user.id, texto=m.text or "",
-                     dominio=dominio, intent=intent, payload=parsed.get("fields") or {},
+                     dominio=dominio, intent=intent,
+                     payload=_sanitizar_fields(intent, parsed.get("fields")),
                      faltando=parsed.get("missing") or [])
     pre = (reply + "\n\n") if reply else ""   # mostra o que a LLM entendeu/calculou
 
