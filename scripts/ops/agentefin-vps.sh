@@ -215,14 +215,16 @@ deploy_update() {
   fi
   echo "  -> git pull --ff-only origin main"; git pull --ff-only origin main
   echo "  -> docker compose build";          docker compose build
-  echo "  -> docker compose up -d";           docker compose up -d
+  # --force-recreate garante que o container suba com o .env atual (restart NÃO recarrega env).
+  echo "  -> docker compose up -d --force-recreate"; docker compose up -d --force-recreate
   docker compose ps
   docker compose logs --tail=50
 }
 
 restart_bot() {
-  echo "== Reiniciar bot =="
-  docker compose restart
+  echo "== Reiniciar bot (recriando p/ recarregar .env) =="
+  # IMPORTANTE: `docker compose restart` NÃO relê o .env. Recriamos o container.
+  docker compose up -d --force-recreate
   docker compose ps
   docker compose logs --tail=50
 }
