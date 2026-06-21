@@ -58,6 +58,40 @@ async def test_slot_filling_descricao(tmp_path, monkeypatch):
     assert "CONFIRMAR" in " ".join(m.replies)
 
 
+async def test_nova_compra_nao_e_capturada_como_resposta(tmp_path):
+    """Bug real: havia rascunho aguardando 'descricao'; usuário manda nova compra completa.
+    A frase NÃO pode preencher a descrição do rascunho antigo (deve cair no parser → novo rascunho)."""
+    store = DraftStore(tmp_path / "s.db")
+    d = store.create(chat_id=UID, user_id=UID, texto="conta antiga", dominio="financeiro",
+                     intent="criar_conta_pagar", payload={"nomeFornecedor": "X", "valor": 1})
+    commands._set_aguardando(store, d, "descricao")
+    m = FakeMsg("comprei 11 cabos de vassoura por 35 na Ligar")
+    handled = await commands._maybe_pendencia_cmd(
+        m, store, _client(), cfgmod.settings, m.text.lower())
+    assert handled is False  # NÃO capturou → vai para o parser (novo rascunho)
+    # rascunho antigo permanece intacto (descrição não virou a frase nova)
+    assert store.get(d.id).payload_extraido.get("descricao") in (None, "")
+
+
+async def test_resposta_curta_ainda_preenche(tmp_path):
+    """Resposta curta (sem verbo) continua preenchendo o campo aguardado."""
+    from financebot import defaults
+    f = tmp_path / "d.yaml"
+    f.write_text("obraPadraoId: 4\ncontaBancariaPadraoId: 5\ncategoriaPadraoId: 15\n"
+                 "formaPagamentoPadrao: pix\n", encoding="utf-8")
+    defaults.load_defaults(f)
+    store = DraftStore(tmp_path / "s.db")
+    d = store.create(chat_id=UID, user_id=UID, texto="conta", dominio="financeiro",
+                     intent="criar_conta_pagar",
+                     payload={"nomeFornecedor": "Condor", "valor": 1, "dataVencimento": "amanha"})
+    commands._set_aguardando(store, d, "descricao")
+    m = FakeMsg("cabos de vassoura")
+    handled = await commands._maybe_pendencia_cmd(m, store, _client(), cfgmod.settings,
+                                                  "cabos de vassoura")
+    assert handled is True
+    assert store.get(d.id).payload_extraido["descricao"] == "cabos de vassoura"
+
+
 async def test_confirmar_ainda_funciona_com_aguardando(tmp_path, monkeypatch):
     monkeypatch.setattr(cfgmod.settings, "write_enabled", False)
     store = DraftStore(tmp_path / "s.db")

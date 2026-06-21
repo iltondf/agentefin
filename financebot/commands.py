@@ -255,6 +255,21 @@ def _aguardando(store, uid: int) -> list:
             if d.status in ("aguardando_confirmacao", "pendente", "confirmado")]
 
 
+# Verbos/indícios de que a mensagem é um NOVO lançamento (não resposta a uma pergunta).
+_VERBOS_NOVO = ("comprei", "paguei", "lança", "lanca", "lancar", "lançar", "adiciona",
+                "coloca", "registra", "anota", "fiz ", "soma ", "gastei", "recebi")
+
+
+def _parece_resposta_curta(texto: str) -> bool:
+    """True se a mensagem parece RESPOSTA a uma pergunta (curta, sem verbo de novo lançamento).
+    Evita que 'comprei 11 cabos...' seja capturado como resposta de um rascunho pendente."""
+    low = (texto or "").strip().lower()
+    if any(v in low for v in _VERBOS_NOVO):
+        return False
+    # respostas típicas: 'pagamento', 'vale', 'condor', 'final 97', 'cabos de vassoura', '12'
+    return len(low.split()) <= 5
+
+
 # Campos do rascunho que aceitam resposta de texto livre (slot-filling).
 _CAMPO_TEXTO = {"descricao", "nomeFornecedor", "nomeFuncionario", "observacao", "observacoes"}
 _CAMPO_NUM = {"valor", "valorUnit", "qtd", "categoriaId", "obraId", "contaBancariaId"}
@@ -326,12 +341,12 @@ async def _preencher_campo(m: Message, store, client, settings, d, campo: str, v
 
 
 async def _maybe_pendencia_cmd(m: Message, store, client, settings, texto: str) -> bool:
-    # Slot-filling: se há rascunho esperando uma resposta, capturá-la primeiro —
-    # exceto se o usuário disse confirmar/cancelar/pendências (palavras de controle).
+    # Slot-filling: se há rascunho esperando uma resposta, capturá-la — MAS só se a
+    # mensagem parecer uma RESPOSTA curta, não uma nova frase de lançamento.
     if texto not in _CONFIRM_WORDS and texto not in _CANCEL_WORDS and texto not in _PEND_WORDS \
             and not texto.startswith(("confirmar ", "cancelar ", "detalhar ", "corrigir ")):
         d, campo = _draft_aguardando_campo(store, m.from_user.id)
-        if d and campo:
+        if d and campo and _parece_resposta_curta(texto):
             await _preencher_campo(m, store, client, settings, d, campo, m.text or "")
             return True
 
