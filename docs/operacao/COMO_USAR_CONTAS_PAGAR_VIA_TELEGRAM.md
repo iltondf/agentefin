@@ -24,7 +24,10 @@
 - **Obra:** sem informar → usa a obra padrão (4). Mostra "Usei obra padrão: 4".
 - **Categoria:** informe se quiser ("categoria X"); senão tenta pela palavra (areia/ferramenta→15);
   senão usa a **categoria padrão (15)**. **Nunca pergunta** a categoria.
-- **Forma de pagamento:** se você disser "no Pix/dinheiro/transferência", usa isso; senão **assume Pix**.
+- **Forma de pagamento:** se você disser "no Pix/dinheiro/transferência/cartão", usa isso; senão **assume Pix**.
+- **Conta de saída:** se não disser, usa a **conta padrão (final 85)**. Você pode dizer
+  "conta 1"/"conta um"/"final 85" → conta final 85; "conta 2"/"conta dois"/"final 97" → conta final 97.
+  Conta não reconhecida → o bot pergunta qual.
 - **Pago × a vencer:** "comprei/paguei" → conta **paga** (hoje); "a vencer em [data]" / "lança uma conta…
   para [data]" → conta **pendente**.
 - **Fornecedor:** resolve pelo nome. Se houver **vários parecidos**, o bot **pergunta qual**. Se **não

@@ -3,11 +3,24 @@
 # conta 5 (Conta01 CEF), categoria 15 (Materiais de Construção).
 
 obraPadraoId: 4
-contaBancariaPadraoId: 5
 formaPagamentoPadrao: pix
 categoriaPadraoId: 15        # usada quando não informada/inferida (Materiais de Construção)
 # fornecedor "Outros" para compras sem fornecedor reconhecido (ajustar depois no web)
 fornecedorOutrosId:          # opcional: preencha com o id do fornecedor "Outros", se existir
+
+# ── Conta bancária de saída ──
+# Conta padrão (quando o usuário não diz de qual conta saiu): final 85.
+# PREENCHER com os ids reais (descubra via /buscar_conta ou GET financeiro/contas-bancarias):
+contaBancariaPadraoId:       # = id da conta final 85
+contasBancarias:             # aliases → id (final 85 = conta 1; final 97 = conta 2)
+  conta1:                    # id da conta final 85
+  contaUm:                   # id da conta final 85
+  final85:                   # id da conta final 85
+  "85":                      # id da conta final 85
+  conta2:                    # id da conta final 97
+  contaDois:                 # id da conta final 97
+  final97:                   # id da conta final 97
+  "97":                      # id da conta final 97
 
 rh:
   destinoPadrao: pagamento

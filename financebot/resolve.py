@@ -170,11 +170,28 @@ async def _cp(client: FinanceClient, p: dict, *, paga: bool) -> tuple[dict, list
             out["formaPagamento"] = defaults.get("formaPagamentoPadrao") or "pix"
             usados.append(f"forma de pagamento: {out['formaPagamento']}")
         out["dataPagamento"] = normalizar_data(p.get("dataPagamento") or "hoje")
+        # ── Conta bancária de saída: id → alias (conta1/conta2) → final (85/97) → padrão ──
+        conta_id = None
         if p.get("contaBancariaId"):
-            out["contaBancariaId"] = p["contaBancariaId"]
+            conta_id = p["contaBancariaId"]
+        elif p.get("contaBancariaAlias"):
+            conta_id = defaults.conta_por_alias(p["contaBancariaAlias"])
+        if conta_id is None and p.get("contaBancariaFinal"):
+            conta_id = defaults.conta_por_final(p["contaBancariaFinal"])
+        if conta_id is not None:
+            out["contaBancariaId"] = conta_id
+            ref = p.get("contaBancariaAlias") or (("final " + str(p["contaBancariaFinal"])) if p.get("contaBancariaFinal") else "")
+            if ref:
+                usados.append(f"conta informada ({ref}) → id {conta_id}")
+        elif (p.get("contaBancariaAlias") or p.get("contaBancariaFinal")):
+            # usuário citou uma conta que não casou com nenhum alias/final → perguntar
+            out["_defaults_usados"] = usados
+            return out, ["contaBancariaId"], (
+                "Não reconheci a conta que você citou. Qual conta? (ex.: conta 1 / final 85, "
+                "conta 2 / final 97)")
         elif defaults.get("contaBancariaPadraoId"):
             out["contaBancariaId"] = defaults.get("contaBancariaPadraoId")
-            usados.append(f"conta bancária padrão: {defaults.get('contaBancariaPadraoId')}")
+            usados.append(f"conta padrão (id {defaults.get('contaBancariaPadraoId')})")
     out["_defaults_usados"] = usados
 
     req = ["fornecedorId", "categoriaId", "valor", "dataVencimento"]

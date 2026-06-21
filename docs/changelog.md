@@ -2,6 +2,16 @@
 
 Formato: data — fase — mudança.
 
+## 2026-06-21 — Conta bancária por alias/final + defaults ágeis
+
+- **Conta de saída:** resolve por id explícito → **alias** (`conta1`/`conta2`/`conta um/dois`) →
+  **final** (`85`/`97`, comparação flexível 85/085/0085) → **conta padrão (final 85)**. Conta citada
+  e não reconhecida → pergunta. Parser extrai `contaBancariaAlias`/`contaBancariaFinal`.
+- `defaults.py`: `conta_por_alias()` e `conta_por_final()`. `defaults.yaml`: `contaBancariaPadraoId`
+  + mapa `contasBancarias` (aliases→id). **Preencher os ids reais (final 85/97) na VPS.**
+- Resumo mostra a conta usada ("conta padrão (id …)" ou "conta informada (conta 2) → id …").
+- **79 testes** (4 exemplos do operador: sem forma/conta→pix+85; dinheiro+conta2→97; pix+conta1→85; pix+final97→97).
+
 ## 2026-06-21 — Ajustes de UX do fluxo natural (slot-filling, defaults, fornecedor Outros)
 
 - **Slot-filling:** quando o bot pergunta um campo (descrição, "vale ou pagamento?", fornecedor),

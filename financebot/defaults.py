@@ -83,3 +83,35 @@ def categoria_por_palavra(texto: str) -> int | None:
         if palavra.lower() in low and isinstance(cat_id, int):
             return cat_id
     return None
+
+
+def _norm_alias(s: str) -> str:
+    """Normaliza um alias de conta: minúsculas, sem espaços/acentos básicos."""
+    return (str(s or "")).lower().replace(" ", "").replace("ç", "c")
+
+
+def conta_por_alias(alias: str) -> int | None:
+    """Resolve contaBancariaId por alias configurado em defaults `contasBancarias`.
+    Aceita 'conta1', 'conta um', 'contaUm', 'final85', '85'... (normalizado)."""
+    mapa = (get("contasBancarias") or {})
+    if not mapa or not alias:
+        return None
+    alvo = _norm_alias(alias)
+    for chave, cid in mapa.items():
+        if _norm_alias(chave) == alvo and isinstance(cid, int):
+            return cid
+    return None
+
+
+def conta_por_final(final: str) -> int | None:
+    """Resolve por final via mapa `contasBancarias` (chave 'final85'/'85') — comparação flexível."""
+    if not final:
+        return None
+    digs = "".join(ch for ch in str(final) if ch.isdigit()).lstrip("0") or "0"
+    mapa = (get("contasBancarias") or {})
+    for chave, cid in mapa.items():
+        k = _norm_alias(chave)
+        kd = "".join(ch for ch in k if ch.isdigit()).lstrip("0") or "0"
+        if (k in (f"final{digs}", digs) or kd == digs) and isinstance(cid, int):
+            return cid
+    return None
