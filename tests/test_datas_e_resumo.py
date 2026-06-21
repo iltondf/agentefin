@@ -105,3 +105,50 @@ async def test_resumo_sem_falta_fantasma_apos_defaults(tmp_path):
     assert "pix" in joined.lower()
     d = store.list_active(UID)[0]
     assert "formaPagamento" not in (d.campos_faltando or [])
+
+
+# ── "comprei ... vence dia X" = conta a pagar PENDENTE (não paga) ──────────
+def test_reclassifica_vence_sem_pagamento_vira_pendente():
+    assert commands._reclassificar_conta(
+        "criar_conta_pagar_paga", "comprei fio na ligar por 75,26 vence dia 25/06"
+    ) == "criar_conta_pagar"
+
+
+def test_reclassifica_nao_mexe_sem_sinal_de_vencimento():
+    # "pela conta 2" = pagou de uma conta → continua paga
+    assert commands._reclassificar_conta(
+        "criar_conta_pagar_paga", "comprei cimento por 60 na Condor pela conta 2"
+    ) == "criar_conta_pagar_paga"
+
+
+def test_reclassifica_respeita_pagamento_explicito():
+    # tem 'vence' mas disse que já pagou → continua paga
+    assert commands._reclassificar_conta(
+        "criar_conta_pagar_paga", "comprei X vence dia 25/06 mas ja paguei"
+    ) == "criar_conta_pagar_paga"
+
+
+def test_reclassifica_nao_toca_outros_intents():
+    assert commands._reclassificar_conta("criar_lancamento_rh", "vence amanhã") == "criar_lancamento_rh"
+    assert commands._reclassificar_conta("criar_conta_pagar", "vence dia 25/06") == "criar_conta_pagar"
+
+
+async def test_fluxo_comprei_vence_vira_pendente_sem_pago_em(tmp_path):
+    _yaml(tmp_path)
+    store = DraftStore(tmp_path / "r.db")
+    ano = date.today().year
+    m = FakeMsg("comprei fio na ligar por 75,26 vence dia 25/06")
+    parsed = {"reply": "Anotado, paga no dia 25/06. Qual a forma?",
+              "intent": "criar_conta_pagar_paga",   # LLM classificou errado (paga)
+              "fields": {"nomeFornecedor": "Ligar", "descricao": "fio", "valor": 75.26,
+                         "dataVencimento": "2023-06-25"},
+              "missing": [], "shouldAsk": False}
+    await commands._tratar_parse(m, store, _client(), parsed)
+    joined = " ".join(m.replies)
+    assert "CONFIRMAR" in joined
+    assert f"{ano}-06-25" in joined        # vencimento com ano atual
+    assert "Pago em" not in joined         # PENDENTE: sem data de pagamento
+    assert "Forma:" not in joined          # PENDENTE: sem forma de pagamento
+    assert "pendente" in joined.lower()    # rótulo "Conta a pagar (pendente)"
+    d = store.list_active(UID)[0]
+    assert d.intent == "criar_conta_pagar"

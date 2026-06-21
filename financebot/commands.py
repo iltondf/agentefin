@@ -278,6 +278,25 @@ def _tem_default(campo: str) -> bool:
     return False
 
 
+# "comprei ... vence dia X" SEM dizer que pagou = conta A PAGAR (pendente), não paga.
+_SINAL_VENCIMENTO = ("vence", "vencimento", "vencer", "a prazo", "fiado",
+                     "para o dia", "pro dia", "até dia", "ate dia", "boleto")
+_SINAL_PAGO = ("paguei", "quitei", "à vista", "a vista", "saiu da conta", "debitei",
+               "já paguei", "ja paguei", "pago em", "foi pago", "paga em", "no pix agora")
+
+
+def _reclassificar_conta(intent: str, texto: str) -> str:
+    """A LLM às vezes marca 'paga' quando o usuário fala de VENCIMENTO sem dizer que
+    pagou ('comprei ... vence dia 25/06' = compra a prazo). Regra de negócio do
+    usuário: nesse caso é conta a pagar PENDENTE (registra só vencimento, sem 'pago em')."""
+    if intent != "criar_conta_pagar_paga":
+        return intent
+    t = (texto or "").lower()
+    tem_venc = any(s in t for s in _SINAL_VENCIMENTO)
+    tem_pago = any(s in t for s in _SINAL_PAGO)
+    return "criar_conta_pagar" if (tem_venc and not tem_pago) else intent
+
+
 def _parece_resposta_curta(texto: str) -> bool:
     """True se a mensagem parece RESPOSTA a uma pergunta (curta, sem verbo de novo lançamento).
     Evita que 'comprei 11 cabos...' seja capturado como resposta de um rascunho pendente."""
@@ -470,6 +489,14 @@ async def _tratar_parse(m: Message, store, client, parsed: dict) -> None:
 
     if not store or not store.available:
         await m.answer("⚠️ Entendi um lançamento, mas rascunhos estão indisponíveis (sem volume)."); return
+
+    # Regra de negócio: "comprei ... vence dia X" (sem dizer que pagou) é conta a pagar
+    # PENDENTE, não paga. Reclassifica antes de criar o rascunho.
+    intent_ajustado = _reclassificar_conta(intent, m.text or "")
+    if intent_ajustado != intent:
+        log_event("reclassificou_conta", de=intent, para=intent_ajustado)
+        intent = intent_ajustado
+        reply = ""  # a narração da LLM assumia 'paga'; evita contradição com o resumo pendente
 
     dominio = ("rh" if "lancamento" in intent else "financeiro")
     d = store.create(chat_id=m.chat.id, user_id=m.from_user.id, texto=m.text or "",
