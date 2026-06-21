@@ -2,6 +2,17 @@
 
 Formato: data — fase — mudança.
 
+## 2026-06-21 — LLM conversacional (conversa + cálculo + lançamento)
+
+- Parser evoluído de "seletor rígido" para **assistente**: JSON agora traz `reply`, `calculos`
+  e `intent=conversa`. O bot **conversa** e faz **contas simples** sem gravar; "soma 325+325 e
+  lança pro Vanderli" calcula 650 e cria rascunho RH (pergunta destino se faltar).
+- `intent=conversa/consulta/pendencias` não cria rascunho; demais escritas mantêm o guardrail
+  (rascunho → resumo → confirmação → POST). `reply` da LLM aparece antes do resumo.
+- Modelo configurável: **`deepseek/deepseek-v4-flash`** (fallbacks qwen/gemini); vazio→gpt-4o-mini.
+- Confirmação natural ampliada ("pode lançar"/"manda"). **67 testes** (conversa/cálculo).
+  Docs `COMO_USAR_LLM_TELEGRAM`/evidências atualizadas. Ativação = `.env` da VPS.
+
 ## 2026-06-21 — Linguagem natural (LLM) como fluxo principal no Telegram
 
 - **Frase livre → LLM parser → rascunho → resolve (IDs+defaults) → resumo → confirmar/cancelar

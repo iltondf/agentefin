@@ -235,7 +235,8 @@ async def _confirmar(m: Message, store, client, settings, d) -> None:
 
 
 # Frases naturais → ação de pendência (sem número).
-_CONFIRM_WORDS = {"confirmar", "confirma", "confirmo", "pode confirmar", "sim", "ok", "isso", "pode gravar"}
+_CONFIRM_WORDS = {"confirmar", "confirma", "confirmo", "pode confirmar", "pode lançar",
+                  "pode lancar", "pode gravar", "sim", "ok", "isso", "manda"}
 _CANCEL_WORDS = {"cancelar", "cancela", "cancelo", "não", "nao", "deixa pra la", "deixa pra lá", "esquece"}
 _PEND_WORDS = {"pendencias", "pendências", "listar pendencias", "listar pendências",
                "o que esta pendente", "o que está pendente", "resumo do dia",
@@ -307,20 +308,36 @@ async def _maybe_pendencia_cmd(m: Message, store, client, settings, texto: str) 
 
 async def _tratar_parse(m: Message, store, client, parsed: dict) -> None:
     intent = parsed.get("intent", "indefinido")
-    if intent.startswith("consultar_"):
-        await m.answer("Entendi uma consulta. Use o comando (ex.: /resumo, /hoje)."); return
+    reply = (parsed.get("reply") or "").strip()
+
+    # Conversa / cálculo / consulta → responde sem criar rascunho.
+    if intent in ("conversa", "consulta", "pendencias"):
+        if intent == "pendencias" and store and store.available:
+            store.expire_old()
+            await m.answer(fmt.lista_pendencias(store.list_active(m.from_user.id))); return
+        if intent == "consulta":
+            await m.answer((reply + "\n\n" if reply else "") +
+                           "Para dados, use /resumo, /hoje, /vencidas, /criticas, /painel."); return
+        await m.answer(reply or "Certo!"); return
+
+    # Não é escrita conhecida → conversa/ajuda.
     if intent in ("indefinido", None) or intent not in WRITE_TOOLS:
-        await m.answer(parsed.get("question") or "Não entendi. Pode reformular? (ou /ajuda)"); return
+        await m.answer(reply or parsed.get("question") or "Não entendi. Pode reformular? (ou /ajuda)")
+        return
+
     if not store or not store.available:
         await m.answer("⚠️ Entendi um lançamento, mas rascunhos estão indisponíveis (sem volume)."); return
+
     dominio = ("rh" if "lancamento" in intent else "financeiro")
     d = store.create(chat_id=m.chat.id, user_id=m.from_user.id, texto=m.text or "",
                      dominio=dominio, intent=intent, payload=parsed.get("fields") or {},
                      faltando=parsed.get("missing") or [])
+    pre = (reply + "\n\n") if reply else ""   # mostra o que a LLM entendeu/calculou
+
     # Se a LLM já sabe que falta algo essencial, pergunta direto.
     if parsed.get("shouldAsk") and parsed.get("question"):
         store.set_status(d.id, "pendente")
-        await m.answer(f"{parsed['question']}\n(rascunho #{d.id} — depois é só dizer 'confirmar')"); return
+        await m.answer(f"{pre}{parsed['question']}\n(rascunho #{d.id} — depois diga 'confirmar')"); return
     # Resolve nomes→IDs + defaults para mostrar um resumo já com o que falta.
     try:
         payload, faltando, pergunta = await resolve.resolver(client, d)
@@ -329,7 +346,6 @@ async def _tratar_parse(m: Message, store, client, parsed: dict) -> None:
         pergunta, faltando = None, []
     if pergunta:
         store.set_status(d.id, "pendente")
-        await m.answer(f"{pergunta}\n(rascunho #{d.id} — depois diga 'confirmar')"); return
-    await m.answer(fmt.resumo_rascunho(store.get(d.id)) +
-                   "\n\nResponda CONFIRMAR para gravar ou CANCELAR. (ou 'confirmar "
-                   + str(d.id) + "')")
+        await m.answer(f"{pre}{pergunta}\n(rascunho #{d.id} — depois diga 'confirmar')"); return
+    await m.answer(pre + fmt.resumo_rascunho(store.get(d.id)) +
+                   "\n\nResponda CONFIRMAR para gravar ou CANCELAR.")

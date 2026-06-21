@@ -6,10 +6,17 @@ Com `LLM_ENABLED=true`, fale com o bot como com uma secretária — sem comando 
 ```
 LLM_ENABLED=true
 LLM_PROVIDER=openrouter
-OPENROUTER_API_KEY=<sua chave>     # segredo — nunca versionar
-LLM_MODEL=                          # vazio = usa openai/gpt-4o-mini (fallback)
+OPENROUTER_API_KEY=<sua chave>          # segredo — nunca versionar
+LLM_MODEL=deepseek/deepseek-v4-flash    # vazio = fallback openai/gpt-4o-mini
+#   fallbacks se houver problema de JSON/idioma: qwen/qwen3.5-flash-02-23 · google/gemini-2.5-flash-lite
 ```
 Confirme no log (opção 5): `bot_start ... llm=True write=True drafts=True allowed=1`.
+
+## O bot conversa e calcula
+Além de lançar, ele responde conversa e contas simples **sem gravar**:
+- "quanto é 325 + 325?" → "650."
+- "soma 325 + 325 e lança pro Vanderli no pagamento" → entende R$ 650, cria rascunho RH.
+Só vira gravação quando há intenção de lançar **e** você confirma.
 
 ## Como falar (exemplos)
 **RH:**

@@ -15,3 +15,4 @@
 | 0009 | `CHECKPOINT_IMPLEMENTACAO_AGENT_READY_TOOLS.md` | Implementação agent-ready: cliente 2-envelopes, registry, rascunhos SQLite, parser, write tools (gated). 51 testes |
 | 0010 | `CHECKPOINT_TELEGRAM_FLUXO_E_ESCRITA_REAL.md` | Fluxo Telegram ligado (confirmar→POST) + validação real (#291/#929/#930), idempotência. 57 testes |
 | 0011 | `CHECKPOINT_LLM_LINGUAGEM_NATURAL.md` | LLM como fluxo principal: parser robusto, confirmação natural, defaults. 64 testes |
+| 0012 | `CHECKPOINT_LLM_CONVERSACIONAL.md` | LLM conversacional (reply/cálculo/intent=conversa) + modelo deepseek. 67 testes |

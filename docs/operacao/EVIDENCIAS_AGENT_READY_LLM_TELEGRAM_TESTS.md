@@ -3,8 +3,11 @@
 Data: 2026-06-21.
 
 ## Configuração
-- Modelo: `LLM_MODEL` (vazio) → **fallback `openai/gpt-4o-mini`** (`config.llm_effective_model`).
+- Modelo escolhido: **`deepseek/deepseek-v4-flash`** (fallbacks: `qwen/qwen3.5-flash-02-23`,
+  `google/gemini-2.5-flash-lite`). Se `LLM_MODEL` vazio → `openai/gpt-4o-mini`.
 - Provider: openrouter; chave via `OPENROUTER_API_KEY` (segredo, não versionado).
+- **Modo conversacional:** parser devolve `reply`/`calculos`/`intent` (inclui `conversa`).
+  Conversa e cálculo **não** criam rascunho; só intenção de lançar + confirmação grava.
 - Defaults (`defaults.yaml`): obra **4**, conta **5**, forma **pix**, categorias areia/material/
   ferramenta/… → **15**, `rh.destinoPadrao=pagamento`.
 

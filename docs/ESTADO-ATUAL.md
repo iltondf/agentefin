@@ -68,12 +68,14 @@ validar `/whoami`. Atualizar após `git push`: opção **3**. Ver `OPERADOR_VPS_
     idempotência (replay não duplica; conflito→409) confirmada. Fluxo Telegram exercitado pelos
     handlers reais (`EVIDENCIAS_AGENT_READY_TELEGRAM_TESTS.md`). **Não há endpoint de apagar** via
     agente — registros de teste removíveis só pelo web/restore.
-  - **🗣️ Linguagem natural (LLM) = fluxo principal:** frase livre → `parser` (JSON, modelo
-    fallback `openai/gpt-4o-mini`) → rascunho → resolve (IDs+defaults) → resumo amigável →
-    **confirmar/cancelar natural** ("confirmar"/"sim"/"ok" · "cancelar"/"não"). `defaults.yaml`
-    (obra 4, conta 5, categorias→15, rh.destino=pagamento) reduz perguntas e aparece no resumo.
+  - **🗣️ LLM conversacional = fluxo principal:** frase livre → `parser` (JSON com `reply`/
+    `calculos`/`intent`) → conversa/cálculo respondem **sem gravar**; intenção de lançar →
+    rascunho → resolve (IDs+defaults) → resumo amigável → **confirmar/cancelar natural**
+    ("confirmar"/"sim"/"ok"/"pode lançar" · "cancelar"/"não"). Faz contas ("soma 325+325 e lança
+    pro Vanderli"→650). Modelo **`deepseek/deepseek-v4-flash`** (fallbacks qwen/gemini; vazio→gpt-4o-mini).
+    `defaults.yaml` (obra 4, conta 5, categorias→15, rh.destino=pagamento) aparece no resumo.
     Ativar via `.env` (`LLM_ENABLED=true`+`OPENROUTER_API_KEY`). Ver `COMO_USAR_LLM_TELEGRAM.md`.
-  - **64 testes** verdes. Docs: `arquitetura/*_IMPLEMENTADO.md`, `seguranca/WRITE_RUNTIME_GUARDRAILS.md`,
+  - **67 testes** verdes. Docs: `arquitetura/*_IMPLEMENTADO.md`, `seguranca/WRITE_RUNTIME_GUARDRAILS.md`,
     `operacao/COMO_USAR_*` (+ `COMO_USAR_LLM_TELEGRAM.md`),
     `operacao/EVIDENCIAS_AGENT_READY_{WRITE,TELEGRAM,LLM_TELEGRAM}_TESTS.md`.
   - **Estado de config:** `.env` do bot com `WRITE_ENABLED=false`, `LLM_ENABLED=false` por padrão.
