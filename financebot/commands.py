@@ -12,6 +12,7 @@ from aiogram import Router
 from aiogram.filters import Command, CommandStart
 from aiogram.types import Message
 
+from financebot import defaults
 from financebot import formatters as fmt
 from financebot import parser, resolve
 from financebot.client import FinanceAPIError, FinanceClient, friendly
@@ -278,16 +279,35 @@ def _draft_aguardando_campo(store, uid: int):
 async def _preencher_campo(m: Message, store, client, settings, d, campo: str, valor_txt: str) -> None:
     """Preenche o campo aguardado com a resposta do usuário e re-resolve o rascunho."""
     valor: object = valor_txt.strip()
-    if campo in _CAMPO_NUM:
+    novo = {**d.payload_extraido}
+    if campo == "fornecedorId":
+        # resposta à pergunta de fornecedor: id explícito, "outros", ou novo nome p/ re-buscar
+        low = valor_txt.strip().lower()
+        if valor_txt.strip().isdigit():
+            novo["fornecedorId"] = int(valor_txt.strip())
+        elif low in ("outros", "outro", "nenhum", "nenhuma"):
+            fid_outros = defaults.get("fornecedorOutrosId")
+            if fid_outros:
+                novo["fornecedorId"] = fid_outros
+                novo["observacoes"] = (f"[AJUSTAR FORNECEDOR: {novo.get('nomeFornecedor','?')}] "
+                                       f"{novo.get('observacoes','')}").strip()
+            else:
+                novo["nomeFornecedor"] = valor_txt.strip()  # sem Outros configurado → re-tenta
+        else:
+            novo["nomeFornecedor"] = valor_txt.strip()  # tratar como novo nome → re-busca
+            novo.pop("fornecedorId", None)
+    elif campo in _CAMPO_NUM:
         v = valor.replace("R$", "").replace(".", "").replace(",", ".").strip()
         try:
             valor = float(v) if ("." in v) else int(v)
         except ValueError:
-            pass  # mantém texto; validação pega depois
-    if campo == "destino":
+            pass
+        novo[campo] = valor
+    elif campo == "destino":
         low = valor_txt.lower()
-        valor = "vale" if "vale" in low else "pagamento" if "pag" in low else valor_txt.strip()
-    novo = {**d.payload_extraido, campo: valor}
+        novo["destino"] = "vale" if "vale" in low else "pagamento" if "pag" in low else valor_txt.strip()
+    else:
+        novo[campo] = valor
     novo.pop("_aguardando_campo", None)
     store.update(d.id, payload_extraido=novo)
     # re-resolve para ver se ainda falta algo

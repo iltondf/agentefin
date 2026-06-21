@@ -2,6 +2,20 @@
 
 Formato: data — fase — mudança.
 
+## 2026-06-21 — Ajustes de UX do fluxo natural (slot-filling, defaults, fornecedor Outros)
+
+- **Slot-filling:** quando o bot pergunta um campo (descrição, "vale ou pagamento?", fornecedor),
+  a próxima mensagem **preenche o rascunho** e re-resolve (antes virava nova conversa).
+- **Categoria nunca pergunta:** informada → palavra-chave (areia/ferramenta→15) → **categoria
+  padrão (`categoriaPadraoId=15`)**. Mostra "Usei categoria padrão: 15".
+- **Fornecedor não encontrado:** se houver parecidos → pergunta qual; se **zero** → lança em
+  **"Outros"** (`fornecedorOutrosId`) + marca `[AJUSTAR FORNECEDOR: <nome>]` na observação.
+  Responder "outros" à pergunta de fornecedor também aciona isso.
+- Forma de pagamento mantém **Pix** como padrão (decisão do operador). **74 testes.**
+- ✅ **Em produção, validado ao vivo:** bot `agenteclaudio` (token dedicado) — conversa, cálculo
+  ("330+330=660") e interpretação de compra ("comprei um tubo de 50mm por 25 na Ligar" → conta paga,
+  fornecedor Ligar resolvido, defaults aplicados).
+
 ## 2026-06-21 — LLM conversacional (conversa + cálculo + lançamento)
 
 - Parser evoluído de "seletor rígido" para **assistente**: JSON agora traz `reply`, `calculos`

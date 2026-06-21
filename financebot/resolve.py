@@ -105,19 +105,39 @@ async def _rh(client: FinanceClient, p: dict) -> tuple[dict, list, str | None]:
 
 async def _cp(client: FinanceClient, p: dict, *, paga: bool) -> tuple[dict, list, str | None]:
     out: dict = {"pago": paga}
-    # fornecedor
+    usados: list[str] = []  # defaults aplicados (mostrar no resumo)
+    # ── Fornecedor ──
     if p.get("fornecedorId"):
         out["fornecedorId"] = int(p["fornecedorId"])
     elif p.get("nomeFornecedor"):
-        fid, err = await _resolver_unico(client, "financeiro/fornecedores/buscar", p["nomeFornecedor"], "fornecedor")
-        if err:
-            return out, ["fornecedorId"], err
-        out["fornecedorId"] = fid
+        try:
+            res = await client.get_v2("financeiro/fornecedores/buscar", {"nome": p["nomeFornecedor"]})
+        except FinanceAPIError as e:
+            return out, ["fornecedorId"], f"Erro ao buscar fornecedor: {e.message}"
+        cands = _cands(res)
+        if len(cands) == 1:
+            out["fornecedorId"] = cands[0].get("id")
+        elif len(cands) > 1:
+            nomes = ", ".join(f"{c.get('nome')}(id {c.get('id')})" for c in cands[:8])
+            return out, ["fornecedorId"], (
+                f"Encontrei mais de um fornecedor parecido com '{p['nomeFornecedor']}': {nomes}. "
+                "Qual o id? (ou diga 'outros' para lançar sem fornecedor definido)")
+        else:
+            # Nenhum parecido → lança em "Outros" e marca para ajuste depois.
+            fid_outros = defaults.get("fornecedorOutrosId")
+            if fid_outros:
+                out["fornecedorId"] = fid_outros
+                tag = f"[AJUSTAR FORNECEDOR: {p['nomeFornecedor']}]"
+                out["observacoes"] = f"{tag} {p.get('observacoes','')}".strip()
+                usados.append(f"fornecedor não encontrado → lançado em Outros ({tag})")
+            else:
+                return out, ["fornecedorId"], (
+                    f"Não encontrei o fornecedor '{p['nomeFornecedor']}' e não há fornecedor "
+                    "'Outros' configurado. Informe o id do fornecedor ou cadastre-o no sistema web.")
     else:
         return out, ["fornecedorId"], "De qual fornecedor?"
 
-    usados: list[str] = []  # defaults aplicados (mostrar no resumo)
-    # categoria: explícita, ou por palavra-chave (categoriaPalavra/descrição)
+    # ── Categoria: explícita → palavra-chave → categoria padrão (nunca pergunta) ──
     if p.get("categoriaId"):
         out["categoriaId"] = p["categoriaId"]
     else:
@@ -126,6 +146,9 @@ async def _cp(client: FinanceClient, p: dict, *, paga: bool) -> tuple[dict, list
         if cat:
             out["categoriaId"] = cat
             usados.append(f"categoria provável: {cat}")
+        elif defaults.get("categoriaPadraoId"):
+            out["categoriaId"] = defaults.get("categoriaPadraoId")
+            usados.append(f"categoria padrão: {defaults.get('categoriaPadraoId')}")
     # obra default (opcional)
     if p.get("obraId"):
         out["obraId"] = p["obraId"]
@@ -133,11 +156,12 @@ async def _cp(client: FinanceClient, p: dict, *, paga: bool) -> tuple[dict, list
         out["obraId"] = defaults.get("obraPadraoId")
         usados.append(f"obra padrão: {defaults.get('obraPadraoId')}")
 
-    out["descricao"] = p.get("descricao") or "[TESTE_AGENT_READY] conta via agente"
+    out["descricao"] = p.get("descricao") or "conta via agente"
     out["valor"] = p.get("valor", p.get("valorUnit"))
     out["dataVencimento"] = normalizar_data(p.get("dataVencimento") or ("hoje" if paga else "amanha"))
+    # preserva tag [AJUSTAR FORNECEDOR] já posta em out["observacoes"], se houver
     if p.get("observacoes"):
-        out["observacoes"] = p["observacoes"]
+        out["observacoes"] = f"{out.get('observacoes','')} {p['observacoes']}".strip()
 
     if paga:
         if p.get("formaPagamento"):

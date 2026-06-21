@@ -74,6 +74,61 @@ async def test_confirmar_sem_rascunho_nao_trata(tmp_path):
     assert handled is False  # cai no parser/ajuda
 
 
+async def test_resolve_categoria_padrao_sem_palavra(tmp_path):
+    """Sem palavra-chave nem categoria informada → usa categoriaPadraoId (nunca pergunta)."""
+    f = tmp_path / "d.yaml"
+    f.write_text("obraPadraoId: 4\ncontaBancariaPadraoId: 5\nformaPagamentoPadrao: pix\n"
+                 "categoriaPadraoId: 15\ncategorias:\n  areia: 15\n", encoding="utf-8")
+    defaults.load_defaults(f)
+
+    def h(req):
+        return httpx.Response(200, json={"data": {"ok": True, "data": {
+            "candidatos": [{"id": 34, "nome": "Ligar"}], "ambiguo": False}}})
+
+    d = SimpleNamespace(intent="criar_conta_pagar_paga",
+                        payload_extraido={"nomeFornecedor": "Ligar", "valor": 25,
+                                          "descricao": "tubo 50mm"})  # sem palavra mapeada
+    payload, faltando, pergunta = await resolve.resolver(_client(h), d)
+    assert payload["categoriaId"] == 15           # caiu no padrão
+    assert not faltando and pergunta is None
+    assert any("categoria padrão" in u for u in payload["_defaults_usados"])
+
+
+async def test_resolve_fornecedor_nao_encontrado_vai_outros(tmp_path):
+    """Fornecedor sem match → usa fornecedorOutrosId + marca [AJUSTAR FORNECEDOR]."""
+    f = tmp_path / "d.yaml"
+    f.write_text("obraPadraoId: 4\ncontaBancariaPadraoId: 5\nformaPagamentoPadrao: pix\n"
+                 "categoriaPadraoId: 15\nfornecedorOutrosId: 99\n", encoding="utf-8")
+    defaults.load_defaults(f)
+
+    def h(req):  # busca retorna ZERO candidatos
+        return httpx.Response(200, json={"data": {"ok": True, "data": {
+            "candidatos": [], "ambiguo": False}}})
+
+    d = SimpleNamespace(intent="criar_conta_pagar",
+                        payload_extraido={"nomeFornecedor": "Fulano Inexistente", "valor": 10,
+                                          "descricao": "x"})
+    payload, faltando, pergunta = await resolve.resolver(_client(h), d)
+    assert payload["fornecedorId"] == 99
+    assert "AJUSTAR FORNECEDOR" in payload["observacoes"]
+    assert not faltando and pergunta is None
+
+
+async def test_resolve_fornecedor_ambiguo_pergunta(tmp_path):
+    defaults.load_defaults(tmp_path / "vazio.yaml")
+
+    def h(req):
+        return httpx.Response(200, json={"data": {"ok": True, "data": {
+            "candidatos": [{"id": 1, "nome": "Condor A"}, {"id": 2, "nome": "Condor B"}],
+            "ambiguo": True}}})
+
+    d = SimpleNamespace(intent="criar_conta_pagar",
+                        payload_extraido={"nomeFornecedor": "Condor", "valor": 1})
+    payload, faltando, pergunta = await resolve.resolver(_client(h), d)
+    assert "fornecedorId" in faltando
+    assert "mais de um" in pergunta.lower()
+
+
 async def test_resolve_categoria_palavra_e_defaults(tmp_path, monkeypatch):
     f = tmp_path / "d.yaml"
     f.write_text("obraPadraoId: 4\ncontaBancariaPadraoId: 5\nformaPagamentoPadrao: pix\n"

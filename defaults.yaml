@@ -5,6 +5,9 @@
 obraPadraoId: 4
 contaBancariaPadraoId: 5
 formaPagamentoPadrao: pix
+categoriaPadraoId: 15        # usada quando não informada/inferida (Materiais de Construção)
+# fornecedor "Outros" para compras sem fornecedor reconhecido (ajustar depois no web)
+fornecedorOutrosId:          # opcional: preencha com o id do fornecedor "Outros", se existir
 
 rh:
   destinoPadrao: pagamento

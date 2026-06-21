@@ -20,6 +20,17 @@
 ## Debug
 `/buscar_fornecedor <nome>` · `/buscar_conta <nome>` · `/buscar_contas_pagar` (via tool).
 
+## Regras de preenchimento automático (defaults)
+- **Obra:** sem informar → usa a obra padrão (4). Mostra "Usei obra padrão: 4".
+- **Categoria:** informe se quiser ("categoria X"); senão tenta pela palavra (areia/ferramenta→15);
+  senão usa a **categoria padrão (15)**. **Nunca pergunta** a categoria.
+- **Forma de pagamento:** se você disser "no Pix/dinheiro/transferência", usa isso; senão **assume Pix**.
+- **Pago × a vencer:** "comprei/paguei" → conta **paga** (hoje); "a vencer em [data]" / "lança uma conta…
+  para [data]" → conta **pendente**.
+- **Fornecedor:** resolve pelo nome. Se houver **vários parecidos**, o bot **pergunta qual**. Se **não
+  achar nenhum**, lança em **"Outros"** e marca `[AJUSTAR FORNECEDOR: <nome>]` na observação para você
+  acertar/cadastrar depois no sistema web (requer `fornecedorOutrosId` no `defaults.yaml`).
+
 ## Comandos manuais (sem LLM)
 - `/cp_teste <fornecedor> <valor> [amanha]` → conta pendente (rascunho → `confirmar N`).
 - `/conta_paga_teste <fornecedor> <valor> [pix] [hoje]` → conta paga.
