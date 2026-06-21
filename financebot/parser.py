@@ -17,6 +17,24 @@ from financebot.logging_setup import log_event
 # Intents que produzem rascunho (escrita). Demais (conversa/pendencias/consultar) não gravam.
 WRITE_INTENTS = {"criar_lancamento_rh", "criar_conta_pagar", "criar_conta_pagar_paga"}
 
+# Modelos de fallback (ids OpenRouter conhecidos/estáveis). Tentados em ordem se o
+# modelo configurado falhar (id inválido, indisponível, etc.).
+_FALLBACK_MODELS = [
+    "deepseek/deepseek-chat",
+    "qwen/qwen-2.5-7b-instruct",
+    "google/gemini-2.0-flash-001",
+    "openai/gpt-4o-mini",
+]
+
+
+def _model_candidates() -> list[str]:
+    """Modelo configurado primeiro; depois fallbacks (sem duplicar)."""
+    out, seen = [], set()
+    for m in [settings.llm_effective_model, *_FALLBACK_MODELS]:
+        if m and m not in seen:
+            out.append(m); seen.add(m)
+    return out
+
 _SYSTEM = (
     "Você é a secretária financeira (assistente) de uma construtora, no Telegram. Fale em "
     "português do Brasil, de forma curta e prática. Você PODE conversar, fazer contas simples "
@@ -79,34 +97,47 @@ def _safe_json(text: str) -> dict | None:
 
 
 async def parse(mensagem: str) -> dict | None:
-    """Retorna o dict do assistente, ou None se desligada/falha (fallback determinístico)."""
+    """Retorna o dict do assistente, ou None se desligada/falha (fallback determinístico).
+
+    Tenta o modelo configurado e, se falhar (não-200), cai para os fallbacks. Loga o
+    status e um trecho do erro (sem segredo) para diagnóstico.
+    """
     if not is_enabled():
         return None
-    body = {
-        "model": settings.llm_effective_model,
-        "messages": [
-            {"role": "system", "content": _SYSTEM},
-            {"role": "user", "content": mensagem or ""},
-        ],
-        "temperature": 0.2,
-        "max_tokens": 500,
-        "response_format": {"type": "json_object"},
+    url = settings.llm_base_url.rstrip("/") + "/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {settings.llm_effective_key}",
+        # OpenRouter recomenda estes headers (opcionais, ajudam no roteamento).
+        "HTTP-Referer": "https://lixo.brglobal.com.br",
+        "X-Title": "agente-financeiro",
     }
-    try:
-        async with httpx.AsyncClient(timeout=settings.llm_timeout) as cli:
-            r = await cli.post(
-                settings.llm_base_url.rstrip("/") + "/chat/completions",
-                json=body,
-                headers={"Authorization": f"Bearer {settings.llm_effective_key}"},
-            )
-        if r.status_code != 200:
-            log_event("llm_http", status=r.status_code, level="warning")
-            return None
-        content = r.json()["choices"][0]["message"]["content"]
-        parsed = _safe_json(content)
-        if parsed:
-            log_event("llm_parse_ok", intent=parsed.get("intent"), conf=parsed.get("confidence"))
-        return parsed
-    except Exception:
-        log_event("llm_parse_erro", level="warning")
-        return None
+    for model in _model_candidates():
+        body = {
+            "model": model,
+            "messages": [
+                {"role": "system", "content": _SYSTEM},
+                {"role": "user", "content": mensagem or ""},
+            ],
+            "temperature": 0.2,
+            "max_tokens": 500,
+            "response_format": {"type": "json_object"},
+        }
+        try:
+            async with httpx.AsyncClient(timeout=settings.llm_timeout) as cli:
+                r = await cli.post(url, json=body, headers=headers)
+            if r.status_code != 200:
+                # loga status + trecho do corpo (sem chave) e tenta o próximo modelo
+                snippet = (r.text or "")[:160].replace("\n", " ")
+                log_event("llm_http", model=model, status=r.status_code, body=snippet, level="warning")
+                continue
+            content = r.json()["choices"][0]["message"]["content"]
+            parsed = _safe_json(content)
+            if parsed:
+                log_event("llm_parse_ok", model=model, intent=parsed.get("intent"),
+                          conf=parsed.get("confidence"))
+                return parsed
+            log_event("llm_json_invalido", model=model, level="warning")
+            # JSON inválido: tenta próximo modelo
+        except Exception as e:
+            log_event("llm_parse_erro", model=model, err=type(e).__name__, level="warning")
+    return None

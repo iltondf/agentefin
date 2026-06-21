@@ -46,3 +46,62 @@ async def test_parser_monta_request_e_parseia(monkeypatch):
 async def test_parser_off_retorna_none(monkeypatch):
     monkeypatch.setattr(cfgmod.settings, "llm_enabled", False)
     assert await parser.parse("qualquer coisa") is None
+
+
+async def test_parser_fallback_modelo_invalido(monkeypatch):
+    """1º modelo retorna 400 (id inválido) → tenta o próximo → sucesso."""
+    monkeypatch.setattr(cfgmod.settings, "llm_enabled", True)
+    monkeypatch.setattr(cfgmod.settings, "openrouter_api_key", "sk-or-test")
+    monkeypatch.setattr(cfgmod.settings, "llm_provider", "openrouter")
+    monkeypatch.setattr(cfgmod.settings, "llm_model", "deepseek/deepseek-v4-flash")
+
+    tentativas = []
+
+    class FakeResp:
+        def __init__(self, status, content=None):
+            self.status_code = status
+            self.text = "not a valid model id" if status != 200 else "ok"
+            self._content = content
+        def json(self):
+            return {"choices": [{"message": {"content": self._content}}]}
+
+    class FakeClient:
+        def __init__(self, *a, **k): pass
+        async def __aenter__(self): return self
+        async def __aexit__(self, *a): return False
+        async def post(self, url, json=None, headers=None):
+            tentativas.append(json["model"])
+            if json["model"] == "deepseek/deepseek-v4-flash":
+                return FakeResp(400)
+            return FakeResp(200, '{"intent":"conversa","reply":"oi","fields":{}}')
+
+    monkeypatch.setattr(parser.httpx, "AsyncClient", FakeClient)
+    out = await parser.parse("oi")
+    assert out["intent"] == "conversa"
+    assert tentativas[0] == "deepseek/deepseek-v4-flash"   # tentou o configurado
+    assert len(tentativas) >= 2                             # caiu para o fallback
+
+
+async def test_parser_envia_headers_openrouter(monkeypatch):
+    monkeypatch.setattr(cfgmod.settings, "llm_enabled", True)
+    monkeypatch.setattr(cfgmod.settings, "openrouter_api_key", "sk-or-test")
+    monkeypatch.setattr(cfgmod.settings, "llm_model", "x/y")
+    cap = {}
+
+    class FakeResp:
+        status_code = 200
+        text = "ok"
+        def json(self): return {"choices": [{"message": {"content": '{"intent":"conversa"}'}}]}
+
+    class FakeClient:
+        def __init__(self, *a, **k): pass
+        async def __aenter__(self): return self
+        async def __aexit__(self, *a): return False
+        async def post(self, url, json=None, headers=None):
+            cap["headers"] = headers
+            return FakeResp()
+
+    monkeypatch.setattr(parser.httpx, "AsyncClient", FakeClient)
+    await parser.parse("oi")
+    assert cap["headers"]["Authorization"] == "Bearer sk-or-test"
+    assert "X-Title" in cap["headers"]
