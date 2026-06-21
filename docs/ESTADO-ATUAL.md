@@ -54,11 +54,15 @@ validar `/whoami`. Atualizar após `git push`: opção **3**. Ver `OPERADOR_VPS_
 - (Opcional) Apagar o bot antigo `Brglobal_financeiro_bot` no BotFather.
 - ⚠️ Token/chave **atuais NÃO** apareceram no chat (foram rotacionados na VPS) — os que
   vazaram (`8431551432…`, `bgf_live_ecffe92489e…`) não estão em uso.
-- **Fase 2 (LLM como SELETOR DE TOOLS read-only) — PLANEJADA** (não implementada, LLM
-  desligada): ver `docs/roadmap/PLANO_LLM_FASE_2.md`, `docs/arquitetura/LLM_TOOLS_DESIGN.md`,
-  `docs/seguranca/LLM_GUARDRAILS.md`. Próximo: Fase 2.1 (registry de tools) só após aprovação.
-- **Secretária Operacional (inbox + rascunhos c/ confirmação) — PLANEJADA** (não implementada):
-  ver `docs/roadmap/PLANO_SECRETARIA_OPERACIONAL.md`, `docs/arquitetura/INBOX_OPERACIONAL_DESIGN.md`,
-  `docs/seguranca/WRITE_TOOLS_GUARDRAILS.md`. Veredito: **aprovar com cuidado, faseado**; MVP = inbox textual.
-- Roadmap (outros): resumos automáticos (scheduler — **não ativar sem decisão**),
-  contas a receber, write com confirmação humana — exige endpoints no BRGlobal.
+- **🌟 Agent-Ready / Secretária Operacional (write tools) — PLANEJADA** (não implementada).
+  Fonte da verdade: `BRGLOBAL_FINANCEIRO_API_AGENT_READY_2026-06-21.md` (raiz). O BRGlobal agora
+  expõe consulta + **escrita controlada** (`/api/agent/v1`). Plano consolidado (supera os planos
+  LLM-tools e secretária abaixo, agora com a API real): `docs/roadmap/PLANO_AGENT_READY_FASE_WRITE.md`,
+  `docs/arquitetura/AGENT_READY_TOOLS_WRITE_DESIGN.md`, `docs/arquitetura/RASCUNHOS_PENDENCIAS_DESIGN.md`,
+  `docs/seguranca/WRITE_CONFIRMATION_GUARDRAILS.md`, `docs/seguranca/LLM_PARSER_GUARDRAILS.md` (checkpoint 0008).
+  Decisões: **1 bot** com modos; **LLM = parser** (não executor); **escrita só após confirmação +
+  Idempotency-Key**; **rascunhos em SQLite** (exige volume `/app/data`); **2 chaves** (read-only atual +
+  nova com escopos write). Próximo: Fase 1 (cliente 2-envelopes + read tools), só após aprovação.
+- Planos anteriores (contexto histórico, consolidados no 0008): `PLANO_LLM_FASE_2.md` (0006),
+  `PLANO_SECRETARIA_OPERACIONAL.md` (0007).
+- Roadmap (outros): resumos automáticos (scheduler — **não ativar sem decisão**), contas a receber.

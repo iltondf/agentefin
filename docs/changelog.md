@@ -2,6 +2,18 @@
 
 Formato: data — fase — mudança.
 
+## 2026-06-21 — Planejamento Agent-Ready (write tools + rascunhos + confirmação)
+
+- **Planejamento (sem código/.env/deploy/LLM/POST).** Spec `BRGLOBAL_FINANCEIRO_API_AGENT_READY_2026-06-21.md`
+  copiada para a raiz (fonte da verdade). BRGlobal ficou agent-ready (consulta + escrita controlada).
+- Decisões: **1 bot** com modos internos; **LLM = parser** JSON (não executor); **escrita só após
+  confirmação humana + Idempotency-Key**; **rascunhos em SQLite** (volume `/app/data`); **2 chaves**
+  (read-only atual + nova write); envelope **duplo** (antigos `data`, novos `data.data`).
+- Read tools novas (resolvem IDs) + 6 write tools planejadas; `fechamento→CP` = 501 (fica no web).
+- Docs: `roadmap/PLANO_AGENT_READY_FASE_WRITE.md`, `arquitetura/AGENT_READY_TOOLS_WRITE_DESIGN.md`,
+  `arquitetura/RASCUNHOS_PENDENCIAS_DESIGN.md`, `seguranca/WRITE_CONFIRMATION_GUARDRAILS.md`,
+  `seguranca/LLM_PARSER_GUARDRAILS.md`; checkpoint 0008 (consolida 0006/0007 com a API real).
+
 ## 2026-05-31 — Planejamento da Secretária Operacional (inbox + rascunhos)
 
 - **Planejamento (sem código/banco/endpoint/deploy).** Captura operacional via Telegram:
