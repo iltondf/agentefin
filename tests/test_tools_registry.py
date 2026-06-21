@@ -43,3 +43,37 @@ async def test_tool_v2_busca_envia_nome():
     await reg["buscar_fornecedores"].run({"nome": "Areião"})
     assert "financeiro/fornecedores/buscar" in seen["url"]
     assert "nome=" in seen["url"]
+
+
+async def test_buscar_contas_pagar_repassa_filtros_e_ordena_por_padrao():
+    """contas-pagar/buscar reescrito: repassa filtros novos e usa createdAt desc por padrão."""
+    seen = {}
+    def h(req):
+        seen["url"] = str(req.url)
+        return httpx.Response(200, json={"data": {"ok": True, "data": {
+            "candidatos": [{"id": 932, "contaPagarId": 932}], "total": 1,
+            "page": 1, "limit": 10, "hasMore": False}}})
+    reg = build_read_registry(_client(h))
+    res = await reg["buscar_contas_pagar"].run(
+        {"status": "pago", "fornecedorId": 33, "valor": 1, "dataPagamento": "2026-06-21", "limit": 10})
+    assert res.ok
+    url = seen["url"]
+    assert "financeiro/contas-pagar/buscar" in url
+    for frag in ("status=pago", "fornecedorId=33", "valor=1", "dataPagamento=2026-06-21",
+                 "limit=10", "orderBy=createdAt", "order=desc"):
+        assert frag in url, frag
+    # leitura no aninhamento data.data
+    assert res.data["data"]["candidatos"][0]["contaPagarId"] == 932
+
+
+async def test_buscar_contas_pagar_ignora_param_desconhecido():
+    """Param fora do whitelist não é repassado (servidor é STRICT → evitaria 422)."""
+    seen = {}
+    def h(req):
+        seen["url"] = str(req.url)
+        return httpx.Response(200, json={"data": {"ok": True, "data": {"candidatos": []}}})
+    reg = build_read_registry(_client(h))
+    await reg["buscar_contas_pagar"].run({"fornecedor": "Ligar", "xpto": "1", "obraId": 4})
+    url = seen["url"]
+    assert "fornecedor=Ligar" in url and "obraId=4" in url
+    assert "xpto" not in url

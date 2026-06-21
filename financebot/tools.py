@@ -78,7 +78,17 @@ def build_read_registry(client: FinanceClient) -> dict[str, Tool]:
     async def _extrato_rh(a):    return ToolResult(True, await client.get_v2("rh/extrato", {"funcionarioId": a["funcionarioId"], "mes": a["mes"]}))
     async def _buscar_pix(a):    return ToolResult(True, await client.get_v2("extrato/pix/buscar", {k: v for k, v in a.items() if k in ("valor", "data", "nome", "contaBancariaId")}))
     async def _buscar_extr(a):   return ToolResult(True, await client.get_v2("extrato/buscar", {k: v for k, v in a.items() if k in ("valor", "data", "contaBancariaId")}))
-    async def _buscar_cp(a):     return ToolResult(True, await client.get_v2("financeiro/contas-pagar/buscar", {k: v for k, v in a.items() if k in ("fornecedor", "status", "obraId")}))
+    # contas-pagar/buscar (reescrito em prod): filtros reais + paginação + ordenação.
+    # Validação STRICT no servidor (param desconhecido → 422), então só repassamos os
+    # suportados; default orderBy=createdAt desc p/ achar criações recentes.
+    _CP_FILTROS = ("status", "fornecedor", "fornecedorId", "valor", "dataVencimento",
+                   "dataPagamento", "criadoEmDe", "criadoEmAte", "q", "busca",
+                   "observacao", "obraId", "page", "limit", "orderBy", "order")
+    async def _buscar_cp(a):
+        params = {k: v for k, v in a.items() if k in _CP_FILTROS and v not in (None, "")}
+        params.setdefault("orderBy", "createdAt")
+        params.setdefault("order", "desc")
+        return ToolResult(True, await client.get_v2("financeiro/contas-pagar/buscar", params))
 
     tools = [
         # legacy
@@ -103,7 +113,12 @@ def build_read_registry(client: FinanceClient) -> dict[str, Tool]:
         Tool("consultar_extrato_rh", "read", "Extrato do mês do funcionário", "read:rh", _extrato_rh, {"funcionarioId": "int", "mes": "YYYY-MM"}),
         Tool("buscar_pix", "read", "Pix candidatos por valor/data/nome", "read:extrato", _buscar_pix, {"valor": "num?", "data": "YYYY-MM-DD?", "nome": "str?"}),
         Tool("buscar_extrato", "read", "Transações bancárias candidatas", "read:extrato", _buscar_extr, {"valor": "num?", "data": "YYYY-MM-DD?"}),
-        Tool("buscar_contas_pagar", "read", "Resolve conta a pagar por fornecedor/filtro", "read:financeiro", _buscar_cp, {"fornecedor": "str?", "status": "str?", "obraId": "int?"}),
+        Tool("buscar_contas_pagar", "read", "Busca/recupera contas a pagar (filtros+paginação+ordenação)", "read:financeiro", _buscar_cp, {
+            "status": "pendente|pago|todos?", "fornecedor": "str?", "fornecedorId": "int?",
+            "valor": "num?", "dataVencimento": "YYYY-MM-DD?", "dataPagamento": "YYYY-MM-DD?",
+            "criadoEmDe": "YYYY-MM-DD?", "criadoEmAte": "YYYY-MM-DD?", "q": "str?",
+            "observacao": "str?", "obraId": "int?", "page": "int?", "limit": "int 1-200?",
+            "orderBy": "createdAt|dataVencimento|dataPagamento|valor|id?", "order": "asc|desc?"}),
     ]
     return {t.name: t for t in tools}
 
