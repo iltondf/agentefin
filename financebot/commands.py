@@ -169,15 +169,21 @@ def build_router(client: FinanceClient, settings: Settings, store=None) -> Route
     @router.message()
     async def _freeform(m: Message):
         texto = (m.text or "").strip()
-        if store and store.available:
-            if await _maybe_pendencia_cmd(m, store, client, settings, texto.lower()):
-                return
-        if not parser.is_enabled():
-            await m.answer("Não entendi. Use /ajuda (ou /rh_teste, /cp_teste)."); return
-        parsed = await parser.parse(m.text or "")
-        if not parsed:
-            await m.answer("Não consegui interpretar agora. Tente de novo ou use /ajuda."); return
-        await _tratar_parse(m, store, client, parsed)
+        log_event("freeform_in", uid=getattr(m.from_user, "id", None),
+                  has_text=bool(texto), llm=parser.is_enabled())
+        try:
+            if store and store.available:
+                if await _maybe_pendencia_cmd(m, store, client, settings, texto.lower()):
+                    return
+            if not parser.is_enabled():
+                await m.answer("Não entendi. Use /ajuda (ou /rh_teste, /cp_teste)."); return
+            parsed = await parser.parse(m.text or "")
+            if not parsed:
+                await m.answer("Não consegui interpretar agora. Tente de novo ou use /ajuda."); return
+            await _tratar_parse(m, store, client, parsed)
+        except Exception as e:  # nunca deixar o handler morrer em silêncio
+            log_event("freeform_excecao", err=type(e).__name__, level="error")
+            await m.answer("⚠️ Tive um erro ao processar sua mensagem. Tente de novo ou use /ajuda.")
 
     return router
 
