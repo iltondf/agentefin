@@ -58,6 +58,28 @@ async def test_calculo_vira_lancamento_pergunta_destino(tmp_path):
     assert drafts[0].payload_extraido["valorUnit"] == 650
 
 
+async def test_shouldask_so_de_forma_nao_pergunta_usa_pix(tmp_path):
+    """LLM marca shouldAsk por causa da forma de pagamento → NÃO pergunta; usa Pix padrão."""
+    from financebot import defaults
+    f = tmp_path / "d.yaml"
+    f.write_text("obraPadraoId: 4\ncategoriaPadraoId: 15\nformaPagamentoPadrao: pix\n"
+                 "contaBancariaPadraoId: 5\n", encoding="utf-8")
+    defaults.load_defaults(f)
+    store = DraftStore(tmp_path / "c.db")
+    m = FakeMsg("comprei 11 cabos de vassoura por 35 na Ligar")
+    parsed = {"reply": "Anotando a compra.", "intent": "criar_conta_pagar_paga",
+              "fields": {"nomeFornecedor": "Ligar", "descricao": "11 cabos de vassoura",
+                         "valor": 35},
+              "missing": ["formaPagamento"], "shouldAsk": True,
+              "question": "Como você pagou?"}
+    await commands._tratar_parse(m, store, _client(), parsed)
+    joined = " ".join(m.replies)
+    assert "Como você pagou" not in joined        # NÃO perguntou
+    assert "CONFIRMAR" in joined                   # foi direto ao resumo
+    d = store.list_active(5)  # uid do FakeMsg é 5
+    assert d and d[0].payload_extraido.get("formaPagamento") == "pix"
+
+
 async def test_indefinido_usa_reply(tmp_path):
     store = DraftStore(tmp_path / "c.db")
     m = FakeMsg("bom dia")

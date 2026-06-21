@@ -260,6 +260,24 @@ _VERBOS_NOVO = ("comprei", "paguei", "lança", "lanca", "lancar", "lançar", "ad
                 "coloca", "registra", "anota", "fiz ", "soma ", "gastei", "recebi")
 
 
+def _tem_default(campo: str) -> bool:
+    """True se o campo é preenchido automaticamente por default/resolução (não perguntar)."""
+    campo = (campo or "").strip()
+    if campo in ("formaPagamento",):
+        return bool(defaults.get("formaPagamentoPadrao"))
+    if campo in ("contaBancariaId", "contaBancaria"):
+        return defaults.get("contaBancariaPadraoId") is not None
+    if campo in ("categoriaId", "categoria", "categoriaPalavra"):
+        return defaults.get("categoriaPadraoId") is not None
+    if campo in ("obraId", "obra"):
+        return defaults.get("obraPadraoId") is not None
+    if campo in ("destino",):
+        return bool(defaults.get("rh.destinoPadrao"))
+    if campo in ("dataVencimento", "dataPagamento", "data", "qtd", "descricao"):
+        return True  # têm fallback (hoje/amanhã, qtd=1, descrição genérica)
+    return False
+
+
 def _parece_resposta_curta(texto: str) -> bool:
     """True se a mensagem parece RESPOSTA a uma pergunta (curta, sem verbo de novo lançamento).
     Evita que 'comprei 11 cabos...' seja capturado como resposta de um rascunho pendente."""
@@ -458,10 +476,11 @@ async def _tratar_parse(m: Message, store, client, parsed: dict) -> None:
                      faltando=parsed.get("missing") or [])
     pre = (reply + "\n\n") if reply else ""   # mostra o que a LLM entendeu/calculou
 
-    # Se a LLM já sabe que falta algo essencial, pergunta direto (e guarda o campo esperado).
-    if parsed.get("shouldAsk") and parsed.get("question"):
-        campo = (parsed.get("missing") or [None])[0]
-        _set_aguardando(store, d, campo)
+    # Só perguntar o que a LLM marcou como faltante E que NÃO tem default/resolução automática.
+    # (forma, conta, categoria, obra e destino-com-default são preenchidos pelo resolve.)
+    falta_real = [c for c in (parsed.get("missing") or []) if not _tem_default(c)]
+    if parsed.get("shouldAsk") and parsed.get("question") and falta_real:
+        _set_aguardando(store, d, falta_real[0])
         await m.answer(f"{pre}{parsed['question']}\n(rascunho #{d.id} — responda, ou diga 'cancelar')"); return
     # Resolve nomes→IDs + defaults para mostrar um resumo já com o que falta.
     try:
