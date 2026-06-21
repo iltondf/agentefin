@@ -1,24 +1,28 @@
 # ESTADO ATUAL — handoff entre sessões
 
-> Leia primeiro ao continuar. A documentação é a fonte da verdade. Atualizado em 2026-05-31.
+> Leia primeiro ao continuar. A documentação é a fonte da verdade. Atualizado em 2026-06-21.
 
-## Status: 🟢 EM PRODUÇÃO NA VPS
+## Status: 🟢 AGENTE OPERACIONAL EM PRODUÇÃO (leitura + escrita confirmada)
 
-- **Deploy:** Docker Compose **direto na VPS** (`root@srv822821`, `~/agentefin`), commit `9ca3e3e`.
-- **Easypanel:** **descartado** para este agente (licença gratuita limita a 3 projetos).
+- **Deploy:** Docker Compose **direto na VPS** (`root@srv822821`, `~/agentefin`), commit `ec19db0`.
+- **Bot em produção:** **`agenteclaudio`** (token dedicado — o anterior era compartilhado com WhatsApp).
 - **Container VPS:** `agentefin` **ativo** (`python -m main`, sem portas).
-- **Bot local:** **parado** (0 instâncias).
-- **LLM:** **desativada** (`LLM_ENABLED=false`).
-- **Scheduler:** **inexistente**.
-- **Fase atual:** **MVP leitura** por comandos Telegram.
-- **Próxima fase:** somente **após validação operacional** e decisão explícita.
+- **LLM:** **ligada** (`LLM_ENABLED=true`, `deepseek/deepseek-v4-flash`). **Escrita:** **ligada**
+  (`WRITE_ENABLED=true` + write key). **Rascunhos:** ligados (volume `/app/data`).
+- **Ciclo ponta a ponta APROVADO (2026-06-21):** Telegram → LLM → rascunho → resumo →
+  **confirmação humana** → POST com Idempotency-Key → **contaPagarId 932** (paga, R$1, obs `[AGENT]`),
+  recuperado só via GET agent-ready; **sem duplicidade**.
+- **Scheduler:** **inexistente** (não ativar sem decisão).
+- **Easypanel:** **descartado** (licença gratuita limita a 3 projetos).
 
 ## O que é
 
-`C:\claude sistemas\agente_financeiro` — bot de Telegram **somente leitura** que
-consulta o **BRGlobal Financeiro** via `/api/agent/v1`. Stack: Python 3.12+,
-aiogram, httpx, pydantic-settings. Repo: `https://github.com/iltondf/agentefin.git`.
-Bot em produção: `brglobalcontas_bot`.
+`C:\claude sistemas\agente_financeiro` — bot de Telegram (linguagem natural via LLM) que
+consulta **e registra** no **BRGlobal Financeiro** via `/api/agent/v1`, **sempre** com
+confirmação humana antes de qualquer POST. Stack: Python 3.12+, aiogram, httpx,
+pydantic-settings. Repo: `https://github.com/iltondf/agentefin.git`. Bot: **`agenteclaudio`**.
+Guardrail: *mensagem natural → LLM → rascunho → resumo → confirmação → POST com Idempotency-Key*
+(**proibido** mensagem natural → POST direto). Consome **só** `/api/agent/v1` (nunca banco/SQL/Prisma).
 
 ## Para recuperar contexto, leia (nesta ordem)
 
@@ -32,9 +36,10 @@ Bot em produção: `brglobalcontas_bot`.
 
 - **Ritual:** implementar → testar → documentar → checkpoint → commit local.
   **Push só com autorização explícita.**
-- **Somente leitura.** O agente nunca acessa o banco direto nem escreve no
-  financeiro. Fonte da verdade = BRGlobal.
-- **Determinístico, 0-token-first.** LLM opcional e **desligada por padrão**.
+- **Escrita só com confirmação humana** (rascunho → resumo → `confirmar` → POST com
+  Idempotency-Key). O agente **nunca** acessa o banco direto (sem SQL/Prisma/rotas humanas);
+  consome **só** `/api/agent/v1`. Fonte da verdade = BRGlobal.
+- **Determinístico, 0-token-first.** LLM como parser conversacional (ligada em produção).
 - Sem framework agêntico / engine / orquestração. Sem Hermes. Scheduler **não ativado**.
 
 ## Operação (na VPS)
@@ -75,12 +80,16 @@ validar `/whoami`. Atualizar após `git push`: opção **3**. Ver `OPERADOR_VPS_
     pro Vanderli"→650). Modelo **`deepseek/deepseek-v4-flash`** (fallbacks qwen/gemini; vazio→gpt-4o-mini).
     `defaults.yaml` (obra 4, conta 5, categorias→15, rh.destino=pagamento) aparece no resumo.
     Ativar via `.env` (`LLM_ENABLED=true`+`OPENROUTER_API_KEY`). Ver `COMO_USAR_LLM_TELEGRAM.md`.
-  - **67 testes** verdes. Docs: `arquitetura/*_IMPLEMENTADO.md`, `seguranca/WRITE_RUNTIME_GUARDRAILS.md`,
+  - **110 testes** verdes. Docs: `arquitetura/*_IMPLEMENTADO.md`, `seguranca/WRITE_RUNTIME_GUARDRAILS.md`,
     `operacao/COMO_USAR_*` (+ `COMO_USAR_LLM_TELEGRAM.md`),
     `operacao/EVIDENCIAS_AGENT_READY_{WRITE,TELEGRAM,LLM_TELEGRAM}_TESTS.md`.
-  - **Estado de config:** `.env` do bot com `WRITE_ENABLED=false`, `LLM_ENABLED=false` por padrão.
-  - ⚠️ **Deploy na VPS pendente** (sem SSH nesta sessão): ver §Deploy abaixo. **Rotacionar a chave
-    write id 17 "agentetelegram"** (apareceu no chat).
+  - **✅ Operacional em produção (2026-06-21):** `.env` da VPS com `LLM_ENABLED=true`,
+    `WRITE_ENABLED=true`, `DRAFTS_ENABLED=true`. POST real ponta a ponta validado → **contaPagarId 932**
+    (paga, R$1, `[AGENT]`), recuperado só via GET; sem duplicidade. Ver `EVIDENCIAS_AGENT_READY_LLM_TELEGRAM_TESTS.md`.
+  - **Busca de contas a pagar reescrita** (servidor, commit `41198e6`): filtros+paginação+ordenação
+    (default `createdAt desc`, STRICT). Tool `buscar_contas_pagar` atualizado p/ usar os filtros.
+  - 🔒 **Pendências de auditoria:** rotacionar chaves expostas (Telegram antigo, write id 17, OpenRouter);
+    revisar alerta web "Dados de pagamento pendentes" da #932 (cadastro bancário do fornecedor = etapa web).
 - Planejamento que originou (contexto): `PLANO_AGENT_READY_FASE_WRITE.md` (0008), consolidando 0006/0007.
 - Roadmap (outros): resumos automáticos (scheduler — **não ativar sem decisão**), contas a receber.
 

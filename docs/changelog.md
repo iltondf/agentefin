@@ -2,6 +2,26 @@
 
 Formato: data — fase — mudança.
 
+## 2026-06-21 — ✅ Agente OPERACIONAL em produção (POST real ponta a ponta) + busca CP reescrita
+
+- **Validação final ao vivo** no bot `agenteclaudio` (llm=True, write=True, drafts=True,
+  modelo `deepseek/deepseek-v4-flash`). Frases #13–#18 interpretadas corretamente (datas
+  determinísticas, paga vs pendente, conta 1/2→5/6, Pix/categoria padrão, fornecedor Outros,
+  slot-fill de valor).
+- **POST real ponta a ponta:** `[TESTE_AGENT_READY] comprei um item de teste por R$ 1 na Ligar`
+  → resumo → `confirmar` → **contaPagarId 932** (LIGAR/Walace 33, R$1, **pago**, saldo R$0,
+  venc/pag 21/06, cat 15, obra 4, obs `[AGENT]`). **Sem duplicidade** (idempotência ok).
+  Recuperado **só via GET agent-ready** (sem banco/SQL). Rascunhos #13–#18 sem POST, cancelados.
+- **Datas determinísticas:** data vem do TEXTO CRU (`hoje/amanhã`, `dd/mm[/aa]`, `DD de MÊS`);
+  ano omitido → ano atual; sem data no texto → padrão — ignora ano alucinado pela LLM.
+- **"comprei … vence dia X" = conta a pagar PENDENTE** (sem `Pago em`/forma); sanitização tira
+  campos de pagamento crus do rascunho pendente. `paguei/à vista/conta 2` continua paga.
+- **Resumo:** sem "Falta: formaPagamento" fantasma após default; **pergunta de slot-fill não duplica**.
+- **Busca de contas a pagar reescrita** (servidor, commit `41198e6`, sem migration): filtros reais
+  + paginação (`page/limit/hasMore/total`) + ordenação (`orderBy/order`, default `createdAt desc`),
+  validação STRICT (param inválido→422). **Tool `buscar_contas_pagar` atualizado** p/ usar os filtros.
+- **110 testes** verdes. Commits do agente: `6b47445`, `2bf7a50`, `ec19db0` (+ docs).
+
 ## 2026-06-21 — Roteamento de pendências + forma padrão + fornecedor Outros
 
 - **Roteamento:** `detalhar`/`confirmar`/`cancelar`/`corrigir` sozinhos **nunca** vão para a LLM.

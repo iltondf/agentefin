@@ -16,3 +16,4 @@
 | 0010 | `CHECKPOINT_TELEGRAM_FLUXO_E_ESCRITA_REAL.md` | Fluxo Telegram ligado (confirmar→POST) + validação real (#291/#929/#930), idempotência. 57 testes |
 | 0011 | `CHECKPOINT_LLM_LINGUAGEM_NATURAL.md` | LLM como fluxo principal: parser robusto, confirmação natural, defaults. 64 testes |
 | 0012 | `CHECKPOINT_LLM_CONVERSACIONAL.md` | LLM conversacional (reply/cálculo/intent=conversa) + modelo deepseek. 67 testes |
+| 0013 | `CHECKPOINT_AGENTE_OPERACIONAL_PRODUCAO.md` | ✅ Operacional em produção (`agenteclaudio`): POST real ponta a ponta → contaPagarId 932; busca CP reescrita. 110 testes |
