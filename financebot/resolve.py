@@ -11,11 +11,19 @@ Retorna (payload, faltando, pergunta):
 """
 from __future__ import annotations
 
+import re
 from datetime import date, timedelta
 from typing import Any
 
 from financebot import defaults
 from financebot.client import FinanceAPIError, FinanceClient
+
+_MESES_PT = {
+    "janeiro": 1, "fevereiro": 2, "marco": 3, "março": 3, "abril": 4, "maio": 5,
+    "junho": 6, "julho": 7, "agosto": 8, "setembro": 9, "outubro": 10,
+    "novembro": 11, "dezembro": 12, "jan": 1, "fev": 2, "mar": 3, "abr": 4,
+    "mai": 5, "jun": 6, "jul": 7, "ago": 8, "set": 9, "out": 10, "nov": 11, "dez": 12,
+}
 
 
 def _hoje() -> str:
@@ -26,13 +34,55 @@ def _amanha() -> str:
     return (date.today() + timedelta(days=1)).isoformat()
 
 
+def _data_do_texto(texto: str) -> str | None:
+    """Data a partir do TEXTO CRU — autoritativo, pois a LLM costuma alucinar o ano
+    (ex.: 'dia 25/06' virava 2023-06-25). Reconhece 'hoje/amanhã/ontem/depois de
+    amanhã', 'dd/mm[/aa]' e 'DD de MÊS [de AAAA]'. Ano ausente → ano atual.
+    Retorna ISO (YYYY-MM-DD) ou None se não houver expressão de data no texto."""
+    t = (texto or "").lower()
+    hoje = date.today()
+    if re.search(r"\bdepois de amanh", t):
+        return (hoje + timedelta(days=2)).isoformat()
+    if re.search(r"\bamanh", t):
+        return _amanha()
+    if re.search(r"\bhoje\b", t):
+        return _hoje()
+    if re.search(r"\bontem\b", t):
+        return (hoje - timedelta(days=1)).isoformat()
+    m = re.search(r"\b(\d{1,2})[/\-](\d{1,2})(?:[/\-](\d{2,4}))?\b", t)
+    if m:
+        dia, mes, ano = int(m.group(1)), int(m.group(2)), m.group(3)
+        y = hoje.year if not ano else (int(ano) + 2000 if len(ano) == 2 else int(ano))
+        try:
+            return date(y, mes, dia).isoformat()
+        except ValueError:
+            return None
+    m = re.search(r"\b(\d{1,2})\s+de\s+([a-zç]+)(?:\s+de\s+(\d{4}))?", t)
+    if m:
+        mes = _MESES_PT.get(m.group(2))
+        if mes:
+            try:
+                return date(int(m.group(3)) if m.group(3) else hoje.year,
+                            mes, int(m.group(1))).isoformat()
+            except ValueError:
+                return None
+    return None
+
+
 def normalizar_data(v: Any) -> str:
+    """Normaliza um valor 'humano' (hoje/amanhã) para ISO; ISO/outros passam direto."""
     s = str(v or "").strip().lower()
     if s in ("", "hoje", "today"):
         return _hoje()
     if s in ("amanha", "amanhã", "tomorrow"):
         return _amanha()
     return str(v)
+
+
+def resolver_data(texto: str, padrao: str) -> str:
+    """Data final de um campo: o TEXTO CRU tem prioridade; sem data no texto usa o
+    padrão (hoje/amanhã), IGNORANDO qualquer valor que a LLM tenha alucinado."""
+    return _data_do_texto(texto) or normalizar_data(padrao)
 
 
 def _cands(v2: Any) -> list:
@@ -86,7 +136,7 @@ async def _rh(client: FinanceClient, p: dict) -> tuple[dict, list, str | None]:
         return out, ["funcionarioId"], "Para qual funcionário?"
 
     out["tipo"] = p.get("tipo") or "ajuste_positivo"
-    out["data"] = normalizar_data(p.get("data"))
+    out["data"] = resolver_data(p.get("_texto", ""), p.get("data") or "hoje")
     out["qtd"] = p.get("qtd", 1)
     out["valorUnit"] = p.get("valorUnit", p.get("valor"))
     if p.get("destino"):
@@ -159,7 +209,8 @@ async def _cp(client: FinanceClient, p: dict, *, paga: bool) -> tuple[dict, list
 
     out["descricao"] = p.get("descricao") or "conta via agente"
     out["valor"] = p.get("valor", p.get("valorUnit"))
-    out["dataVencimento"] = normalizar_data(p.get("dataVencimento") or ("hoje" if paga else "amanha"))
+    # Data do TEXTO CRU (autoritativo); a LLM alucina o ano, então ignoramos o valor dela.
+    out["dataVencimento"] = resolver_data(p.get("_texto", ""), "hoje" if paga else "amanha")
     # preserva tag [AJUSTAR FORNECEDOR] já posta em out["observacoes"], se houver
     if p.get("observacoes"):
         out["observacoes"] = f"{out.get('observacoes','')} {p['observacoes']}".strip()
@@ -174,7 +225,7 @@ async def _cp(client: FinanceClient, p: dict, *, paga: bool) -> tuple[dict, list
         else:
             out["formaPagamento"] = defaults.get("formaPagamentoPadrao") or "pix"
             usados.append("Pix (forma padrão)")
-        out["dataPagamento"] = normalizar_data(p.get("dataPagamento") or "hoje")
+        out["dataPagamento"] = resolver_data(p.get("_texto", ""), "hoje")
         # ── Conta bancária de saída: id → alias (conta1/conta2) → final (85/97) → padrão ──
         conta_id = None
         if p.get("contaBancariaId"):

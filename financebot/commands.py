@@ -347,7 +347,8 @@ async def _preencher_campo(m: Message, store, client, settings, d, campo: str, v
     d = store.get(d.id)
     try:
         payload, faltando, pergunta = await resolve.resolver(client, d)
-        store.update(d.id, payload_extraido={**d.payload_extraido, **payload})
+        store.update(d.id, payload_extraido={**d.payload_extraido, **payload},
+                     campos_faltando=faltando)
     except FinanceAPIError:
         pergunta, faltando = None, []
     if pergunta:
@@ -485,7 +486,11 @@ async def _tratar_parse(m: Message, store, client, parsed: dict) -> None:
     # Resolve nomes→IDs + defaults para mostrar um resumo já com o que falta.
     try:
         payload, faltando, pergunta = await resolve.resolver(client, d)
-        store.update(d.id, payload_extraido={**d.payload_extraido, **payload})
+        # campos_faltando vem do resolve (já com defaults aplicados): NÃO manter o
+        # 'missing' cru da LLM, senão o resumo mostra "Falta: formaPagamento" mesmo
+        # após o Pix padrão ter sido preenchido.
+        store.update(d.id, payload_extraido={**d.payload_extraido, **payload},
+                     campos_faltando=faltando)
     except FinanceAPIError:
         pergunta, faltando = None, []
     if pergunta:
