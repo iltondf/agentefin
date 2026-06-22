@@ -57,6 +57,10 @@ validar `/whoami`. Atualizar após `git push`: opção **3**. Ver `OPERADOR_VPS_
 
 - ✅ **Concluído/validado:** **Contas a Pagar / Conta paga / Compra paga** ponta a ponta
   (POST real **#932**). Ver checkpoint **0014** (`CHECKPOINT_FECHAMENTO_SESSAO_AGENT_READY_CONTAS_PAGAR.md`).
+- ✅ **Consultas read-only de contas a pagar** (2026-06-22): "em aberto/vencidas/vencem hoje/esta
+  semana/próximos/pagas/dados de pagamento" agora vão para a API (`/contas-pagar/buscar`), não
+  para pendências locais. Pix/código de barras **não** vêm da API (pendência futura). Ver changelog
+  e `EVIDENCIAS_AGENT_READY_LLM_TELEGRAM_TESTS.md`.
 - ⏭️ **NÃO validado (não concluído):** **RH** via Telegram (lançamento/vale vs pagamento/diárias/
   produção), **terceirizados** (serviço/pagamento) e **áudio/Whisper**.
 - **Próxima sessão começa pelo RH.** Plano em `roadmap/ROADMAP_RH_E_WHISPER.md` (Fase 1 RH; Fase 2
@@ -89,7 +93,7 @@ validar `/whoami`. Atualizar após `git push`: opção **3**. Ver `OPERADOR_VPS_
     pro Vanderli"→650). Modelo **`deepseek/deepseek-v4-flash`** (fallbacks qwen/gemini; vazio→gpt-4o-mini).
     `defaults.yaml` (obra 4, conta 5, categorias→15, rh.destino=pagamento) aparece no resumo.
     Ativar via `.env` (`LLM_ENABLED=true`+`OPENROUTER_API_KEY`). Ver `COMO_USAR_LLM_TELEGRAM.md`.
-  - **110 testes** verdes. Docs: `arquitetura/*_IMPLEMENTADO.md`, `seguranca/WRITE_RUNTIME_GUARDRAILS.md`,
+  - **123 testes** verdes. Docs: `arquitetura/*_IMPLEMENTADO.md`, `seguranca/WRITE_RUNTIME_GUARDRAILS.md`,
     `operacao/COMO_USAR_*` (+ `COMO_USAR_LLM_TELEGRAM.md`),
     `operacao/EVIDENCIAS_AGENT_READY_{WRITE,TELEGRAM,LLM_TELEGRAM}_TESTS.md`.
   - **✅ Operacional em produção (2026-06-21):** `.env` da VPS com `LLM_ENABLED=true`,

@@ -2,6 +2,27 @@
 
 Formato: data — fase — mudança.
 
+## 2026-06-22 — Roteamento de CONSULTAS de contas a pagar (read-only) — fix de intenção
+
+- **Bug (uso real):** "Que contas tem em aberto esta semana?" / "Que contas vencem esta semana?"
+  respondiam **"Você não tem pendências."** **Causa raiz:** o parser não distinguia
+  `intent=consulta` (contas REAIS do financeiro) de `intent=pendencias` (rascunhos locais do
+  agente) — o prompt não definia a diferença — e o ramo `consulta` do `_tratar_parse` nem
+  chamava a API (só apontava `/hoje`, `/vencidas`).
+- **Fix:** classificador determinístico `_classificar_consulta_financeira` (0-token, roda antes
+  da LLM) + executor `_executar_consulta` (GET `/financeiro/contas-pagar/buscar`, **read-only**) +
+  parser com `intent=consulta`/`consultaTipo` definidos. Pendências locais restritas a palavras
+  explícitas (pendências/rascunhos/detalhar/confirmar/cancelar/corrigir N).
+- **Consultas suportadas:** em aberto, vencidas, vencem hoje, **esta semana** (hoje→domingo,
+  **TZ America/Sao_Paulo**), próximos N dias, próximos pagamentos, boletos em aberto, contas
+  pagas, e dados de pagamento de uma conta (por fornecedor/ID; pede escolha se ambíguo).
+- **Resposta:** sempre começa com **"Consultei o BRGlobal Financeiro…"**; vazio →
+  **"…não encontrei contas…"**; **nunca** "pendências" para contas reais.
+- **Limitação registrada:** a `/buscar` reescrita **não** retorna Pix/código de barras/linha
+  digitável (confirmado via GET) → resposta honesta + **pendência futura** (API expor dados de
+  pagamento sanitizados em endpoint read-only).
+- **123 testes** (+13). **Somente read-only — nenhum POST.** RH e Whisper seguem fora do escopo.
+
 ## 2026-06-21 — 🔒 Fechamento da sessão: fase Contas a Pagar concluída
 
 - **Fase Contas a Pagar/Conta paga/Compra paga: concluída e validada em produção** (resumo no

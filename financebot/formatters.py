@@ -300,3 +300,79 @@ def detalhe_pendencia(d) -> str:
     if d.erro_api:
         linhas.append(f"\n❌ Erro: {d.erro_api}")
     return "\n".join(linhas)
+
+
+# ── Consultas financeiras (contas a pagar reais do BRGlobal) ──────────────
+# Sempre começam com "Consultei o BRGlobal Financeiro." e NUNCA falam "pendências"
+# (que é o domínio dos rascunhos locais do agente).
+_CONSULTEI = "Consultei o BRGlobal Financeiro"
+
+_STATUS_LABEL = {"pendente": "em aberto", "pago": "pago",
+                 "parcialmente_pago": "parcialmente pago", "cancelado": "cancelado"}
+
+
+def _cid(c: dict) -> Any:
+    return c.get("contaPagarId") or c.get("id")
+
+
+def _linha_cp(c: dict, i: int) -> str:
+    forn = c.get("fornecedor") or c.get("fornecedorNome") or "(sem fornecedor)"
+    st = _STATUS_LABEL.get(c.get("status"), c.get("status") or "—")
+    linhas = [
+        f"{i}. {forn}",
+        f"   Conta ID: {_cid(c)}",
+        f"   Valor: {brl(c.get('valorOriginal') if c.get('valorOriginal') is not None else c.get('valor'))}"
+        f" · Saldo: {brl(c.get('saldoAberto'))}",
+        f"   Vence: {data_br(c.get('dataVencimento'))} · Status: {st}",
+    ]
+    pg = c.get("dataPagamento")
+    if pg:
+        linhas.append(f"   Pago em: {data_br(pg)}")
+    desc = (c.get("descricao") or "").strip()
+    if desc:
+        linhas.append(f"   Descrição: {desc}")
+    return "\n".join(linhas)
+
+
+def consulta_contas(contas: list, frase: str, total: int | None = None) -> str:
+    """Lista de contas a pagar reais. `frase` descreve o recorte (ex.: 'em aberto para
+    esta semana', 'vencidas', 'que vencem hoje', 'pagas')."""
+    contas = contas or []
+    if not contas:
+        return f"{_CONSULTEI} e não encontrei contas {frase}."
+    cab = f"{_CONSULTEI}. Encontrei {len(contas)} conta(s) {frase}:"
+    corpo = [_linha_cp(c, i) for i, c in enumerate(contas[:_MAX], 1)]
+    rodape = []
+    if total is not None and total > len(contas):
+        rodape.append(f"\n(há {total} no total; mostrando {len(contas)})")
+    elif len(contas) > _MAX:
+        rodape.append(f"\n… e mais {len(contas) - _MAX} (mostrando {_MAX}).")
+    soma = sum(_f(c.get("saldoAberto")) for c in contas)
+    rodape.append(f"💰 Soma dos saldos (amostra): {brl(soma)}")
+    return cab + "\n\n" + "\n\n".join(corpo) + "\n" + "\n".join(rodape)
+
+
+def escolher_conta(contas: list, fornecedor: str) -> str:
+    cab = f"{_CONSULTEI}. Encontrei mais de uma conta da {fornecedor} em aberto. Qual delas?"
+    corpo = [_linha_cp(c, i) for i, c in enumerate(contas[:_MAX], 1)]
+    return cab + "\n\n" + "\n\n".join(corpo) + "\n\nResponda com o Conta ID."
+
+
+def dados_pagamento(c: dict) -> str:
+    """Detalhe de uma conta para pagamento. A API /buscar NÃO retorna Pix/código de
+    barras/linha digitável — então informamos isso com honestidade (nunca inventar)."""
+    forn = c.get("fornecedor") or "(sem fornecedor)"
+    st = _STATUS_LABEL.get(c.get("status"), c.get("status") or "—")
+    linhas = [f"{_CONSULTEI} — conta da {forn}:", "",
+              f"  Conta ID: {_cid(c)}",
+              f"  Valor: {brl(c.get('valorOriginal'))} · Saldo: {brl(c.get('saldoAberto'))}",
+              f"  Vence: {data_br(c.get('dataVencimento'))} · Status: {st}"]
+    if c.get("dataPagamento"):
+        linhas.append(f"  Pago em: {data_br(c.get('dataPagamento'))}")
+    if (c.get("descricao") or "").strip():
+        linhas.append(f"  Descrição: {c['descricao'].strip()}")
+    if (c.get("observacoes") or "").strip():
+        linhas.append(f"  Observações: {c['observacoes'].strip()}")
+    linhas.append("\n⚠️ A API não retornou Pix, código de barras ou linha digitável "
+                  "cadastrados para essa conta.")
+    return "\n".join(linhas)

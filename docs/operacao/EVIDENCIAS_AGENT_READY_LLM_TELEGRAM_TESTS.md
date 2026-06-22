@@ -85,6 +85,39 @@ Validação **STRICT** (param desconhecido → 422 `VALIDACAO`). Resultado no an
 - **Bot atualizado:** tool `buscar_contas_pagar` repassa esses filtros e usa `createdAt desc` por padrão
   (descarta params fora do whitelist p/ evitar 422). Cobertura em `tests/test_tools_registry.py`.
 
+## Consultas de contas a pagar (read-only) — fix de roteamento (2026-06-22)
+**Bug real:** "Que contas tem em aberto esta semana?" / "Que contas vencem esta semana?" →
+o bot respondia **"Você não tem pendências."** **Causa:** confusão entre **pendências locais**
+(rascunhos SQLite do agente) e **contas a pagar reais** (BRGlobal); o parser não definia
+`consulta` vs `pendencias` e o ramo `consulta` nem chamava a API.
+
+**Correção (somente GET read-only):**
+- Classificador determinístico antes da LLM + executor sobre `GET /financeiro/contas-pagar/buscar`.
+- Pendências locais SÓ com: pendências, rascunhos, detalhar/confirmar/cancelar/corrigir N.
+- Consultas suportadas → endpoint/filtros:
+  - em aberto / a pagar / boletos → `status=pendente&orderBy=dataVencimento&order=asc&limit=10`
+  - vencem hoje → `status=pendente&dataVencimento=<hoje>`
+  - vencidas → pendentes com vencimento `< hoje`
+  - esta semana → pendentes com vencimento entre **hoje e domingo** (TZ America/Sao_Paulo)
+  - próximos N dias → pendentes com vencimento entre hoje e hoje+N
+  - contas pagas → `status=pago&orderBy=dataPagamento&order=desc&limit=10`
+  - dados de pagamento → busca por fornecedor/ID; 1 → detalhe; vários → pede escolha
+- Resposta sempre inicia com **"Consultei o BRGlobal Financeiro…"**; vazio → "…não encontrei
+  contas…"; **nunca** "pendências" para contas reais.
+- **TZ:** datas (hoje/semana/próximos) calculadas em **America/Sao_Paulo** (`hoje_sp()`), com
+  fallback a `date.today()` se faltar tzdata. "vencidas" = vencimento estritamente anterior a hoje.
+
+**Limitação (confirmada via GET):** a `/buscar` reescrita **não** retorna `chavePix`/`pixCopiaCola`/
+`codigoBarras`/`linhaDigitavel`. Para "Pix/código de barras de uma conta", o bot mostra o que há
+(fornecedor, valor, vencimento, status, saldo, ID, observações) e responde **honestamente** que a
+API não retornou esses dados — **nunca inventa**.
+- 📌 **Pendência futura:** API agent-ready expor **dados de pagamento sanitizados** (Pix/linha
+  digitável) em endpoint read-only, se necessário ao uso operacional.
+
+**Testes:** `tests/test_consulta_financeira.py` (classificador; roteamento à API; resposta vazia;
+hoje/semana/vencidas/pagas; dados de pagamento 1×/N; regressão pendências locais; caminho LLM;
+ordem do `_freeform`). Total da suíte: **123 passed**.
+
 ## Fora do escopo de hoje (NÃO validado — não tratar como concluído)
 RH via Telegram (lançamento/vale vs pagamento/diárias/produção), terceirizados (serviço/
 pagamento) e áudio/Whisper **não** foram validados nesta sessão. Próxima fase = **RH**

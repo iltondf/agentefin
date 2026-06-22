@@ -6,7 +6,9 @@ A LLM (se ligada) é parser; comandos manuais funcionam mesmo com LLM desligada.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+import re
+from datetime import date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from aiogram import Router
 from aiogram.filters import Command, CommandStart
@@ -176,6 +178,9 @@ def build_router(client: FinanceClient, settings: Settings, store=None) -> Route
             if store and store.available:
                 if await _maybe_pendencia_cmd(m, store, client, settings, texto.lower()):
                     return
+            # Consulta financeira REAL (contas a pagar) — determinística, antes da LLM.
+            if await _maybe_consulta_financeira(m, client, texto.lower()):
+                return
             if not parser.is_enabled():
                 await m.answer("Não entendi. Use /ajuda (ou /rh_teste, /cp_teste)."); return
             parsed = await parser.parse(m.text or "")
@@ -245,9 +250,11 @@ async def _confirmar(m: Message, store, client, settings, d) -> None:
 _CONFIRM_WORDS = {"confirmar", "confirma", "confirmo", "pode confirmar", "pode lançar",
                   "pode lancar", "pode gravar", "sim", "ok", "isso", "manda"}
 _CANCEL_WORDS = {"cancelar", "cancela", "cancelo", "não", "nao", "deixa pra la", "deixa pra lá", "esquece"}
-_PEND_WORDS = {"pendencias", "pendências", "listar pendencias", "listar pendências",
-               "o que esta pendente", "o que está pendente", "resumo do dia",
-               "mostra o que ficou para confirmar", "o que ficou pendente"}
+# SOMENTE rascunhos/pendências do PRÓPRIO agente (local SQLite). Contas reais do
+# financeiro ("em aberto", "a pagar", "vencidas"...) NÃO entram aqui — são consulta.
+_PEND_WORDS = {"pendencias", "pendências", "rascunhos", "meus rascunhos",
+               "rascunhos abertos", "rascunhos pendentes",
+               "listar pendencias", "listar pendências"}
 
 
 def _aguardando(store, uid: int) -> list:
@@ -329,6 +336,195 @@ def _montar_pergunta(reply: str, pergunta: str, hint: str) -> str:
     partes = [p for p in (_sem_pergunta_final(reply), (pergunta or "").strip()) if p]
     corpo = "\n\n".join(partes)
     return f"{corpo}\n{hint}" if corpo else hint
+
+
+# ════════════════════════════════════════════════════════════════════════
+# Consultas financeiras (contas a pagar REAIS do BRGlobal) — SOMENTE READ.
+# Domínio diferente de "pendências" (rascunhos locais). Nunca responde
+# "Você não tem pendências" a uma pergunta sobre contas reais.
+# ════════════════════════════════════════════════════════════════════════
+_TZ_SP = "America/Sao_Paulo"
+# Verbos de ESCRITA: se presentes, não é consulta (deixa o parser/reclassificação cuidar).
+_VERBOS_ESCRITA = ("comprei", "gastei", "lança", "lanca", "lancar", "lançar", "anota",
+                   "anote", "registra", "registre", "coloca", "adiciona", "recebi")
+
+
+def hoje_sp() -> date:
+    """Data local em America/Sao_Paulo (não depende do TZ do servidor/host)."""
+    try:
+        return datetime.now(ZoneInfo(_TZ_SP)).date()
+    except Exception:  # tzdata ausente em algum host → fallback
+        return date.today()
+
+
+def _re_dias(t: str) -> int | None:
+    m = re.search(r"pr[oó]xim\w*\s+(\d{1,3})\s+dias?", t)
+    return int(m.group(1)) if m else None
+
+
+def _re_conta_id(t: str) -> int | None:
+    m = re.search(r"(?:conta|id|n[ºo]|#)\s*#?\s*(\d{1,7})\b", t)
+    return int(m.group(1)) if m else None
+
+
+def _re_fornecedor(t: str) -> str | None:
+    m = re.search(r"\bcontas?\s+d[aeo]\s+([a-zçãõáéíóúâêô0-9][\w .'\-]{1,40})", t) \
+        or re.search(r"\bpagar\s+(?:a\s+|o\s+)?(?:conta\s+)?d[aeo]\s+([\w .'\-]{2,40})", t) \
+        or re.search(r"\bfornecedor\s+([\w .'\-]{2,40})", t)
+    if not m:
+        return None
+    nome = re.split(r"\b(em aberto|aberta|vencid\w*|hoje|essa|esta|para|pra|por|no|na)\b",
+                    m.group(1).strip(" ?.!,"))[0].strip(" ?.!,")
+    return nome or None
+
+
+def _classificar_consulta_financeira(texto: str) -> dict | None:
+    """Heurística determinística (0-token): classifica perguntas sobre CONTAS A PAGAR
+    REAIS. Retorna {tipo, dias?, fornecedor?, contaId?} ou None (não é consulta)."""
+    t = (texto or "").lower().strip()
+    if not t or any(v in t for v in _VERBOS_ESCRITA):
+        return None
+
+    def has(*subs: str) -> bool:
+        return any(s in t for s in subs)
+
+    if has("dados para pagar", "dados de pagamento", "dados pra pagar", "me passa os dados",
+           "qual o pix", "qual e o pix", "qual é o pix", "pix da conta", "pix dessa",
+           "codigo de barras", "código de barras", "linha digit", "boleto da conta",
+           "boleto dessa", "me manda o boleto", "como pago essa", "como pagar essa"):
+        return {"tipo": "dados_pagamento", "fornecedor": _re_fornecedor(t), "contaId": _re_conta_id(t)}
+    if has("vencida", "vencidas", "atrasada", "atrasadas", "em atraso", "venceu", "vencido"):
+        return {"tipo": "vencidas"}
+    if has("vence hoje", "vencem hoje", "vencendo hoje", "vencer hoje", "vence hj", "vencem hj"):
+        return {"tipo": "hoje"}
+    if "semana" in t and has("conta", "venc", "aberto", "pagar", "boleto", "pagamento"):
+        return {"tipo": "semana"}
+    if has("contas pagas", "conta paga", "que contas paguei", "quais contas paguei",
+           "contas que paguei", "historico de pagamento", "histórico de pagamento"):
+        return {"tipo": "pagas"}
+    nd = _re_dias(t)
+    if nd is not None:
+        return {"tipo": "proximos", "dias": nd}
+    if has("proximos pagamentos", "próximos pagamentos", "proximas contas", "próximas contas",
+           "proximos vencimentos", "próximos vencimentos", "a vencer", "proximos dias", "próximos dias"):
+        return {"tipo": "proximos"}
+    if has("em aberto", "contas abertas", "boletos em aberto", "pagamentos em aberto",
+           "o que tenho pra pagar", "o que tenho para pagar", "o que preciso pagar",
+           "quais contas preciso pagar", "que contas tenho", "quais contas tenho",
+           "tenho contas a pagar", "me mostra as contas", "me mostra os pagamentos",
+           "lista de contas", "contas a pagar", "contas pra pagar", "contas para pagar"):
+        return {"tipo": "em_aberto"}
+    return None
+
+
+async def _buscar_cp(client, params: dict) -> dict:
+    """GET /financeiro/contas-pagar/buscar (read-only) → {itens, total, hasMore}."""
+    res = await client.get_v2("financeiro/contas-pagar/buscar", params)
+    d = res.get("data") if isinstance(res, dict) else res
+    d = d if isinstance(d, dict) else {}
+    return {"itens": d.get("candidatos") or [], "total": d.get("total"),
+            "hasMore": bool(d.get("hasMore"))}
+
+
+async def _buscar_cp_paginado(client, base: dict, cap_paginas: int = 6) -> list:
+    """Pagina a /buscar (limit 200) até hasMore=false ou o cap (a API não tem range de
+    vencimento; janelas são filtradas no cliente)."""
+    itens, page = [], 1
+    while page <= cap_paginas:
+        r = await _buscar_cp(client, {**base, "limit": 200, "page": page})
+        itens.extend(r["itens"])
+        if not r["hasMore"]:
+            break
+        page += 1
+    return itens
+
+
+def _venc_date(c: dict):
+    s = (c.get("dataVencimento") or "")[:10]
+    try:
+        return date.fromisoformat(s)
+    except ValueError:
+        return None
+
+
+async def _pendentes_por_vencimento(client, *, de=None, ate=None, antes_de=None) -> list:
+    """Pendentes filtradas por janela de vencimento (cliente). `antes_de` → vencidas
+    (v < antes_de); `de..ate` → intervalo inclusivo."""
+    todas = await _buscar_cp_paginado(client, {"status": "pendente",
+                                               "orderBy": "dataVencimento", "order": "asc"})
+    sel = []
+    for c in todas:
+        v = _venc_date(c)
+        if v is None:
+            continue
+        if antes_de is not None and v < antes_de:
+            sel.append(c)
+        elif de is not None and ate is not None and de <= v <= ate:
+            sel.append(c)
+    return sel
+
+
+async def _consulta_dados_pagamento(client, spec: dict) -> str:
+    cid, forn = spec.get("contaId"), spec.get("fornecedor")
+    if cid:
+        for status in ("pendente", "pago"):
+            for c in await _buscar_cp_paginado(client, {"status": status,
+                                                        "orderBy": "dataVencimento", "order": "asc"}):
+                if str(c.get("contaPagarId") or c.get("id")) == str(cid):
+                    return fmt.dados_pagamento(c)
+        return f"{fmt._CONSULTEI} e não encontrei a conta {cid}."
+    if not forn:
+        return ("De qual conta? Diga o fornecedor ou o Conta ID — ex.: "
+                "'dados para pagar a conta da Ligar'.")
+    r = await _buscar_cp(client, {"status": "pendente", "fornecedor": forn,
+                                  "orderBy": "dataVencimento", "order": "asc", "limit": 50})
+    itens = r["itens"]
+    if not itens:
+        return f"{fmt._CONSULTEI} e não encontrei conta em aberto da {forn}."
+    return fmt.dados_pagamento(itens[0]) if len(itens) == 1 else fmt.escolher_conta(itens, forn)
+
+
+async def _executar_consulta(client, spec: dict) -> str:
+    """Executa a consulta financeira read-only e devolve o texto formatado."""
+    tipo = (spec or {}).get("tipo", "em_aberto")
+    try:
+        if tipo == "dados_pagamento":
+            return await _consulta_dados_pagamento(client, spec)
+        if tipo == "hoje":
+            r = await _buscar_cp(client, {"status": "pendente", "dataVencimento": hoje_sp().isoformat(),
+                                          "orderBy": "dataVencimento", "order": "asc", "limit": 50})
+            return fmt.consulta_contas(r["itens"], "que vencem hoje", r["total"])
+        if tipo == "vencidas":
+            itens = await _pendentes_por_vencimento(client, antes_de=hoje_sp())
+            return fmt.consulta_contas(itens, "vencidas (em aberto)")
+        if tipo == "semana":
+            h = hoje_sp(); fim = h + timedelta(days=(6 - h.weekday()))  # hoje até domingo
+            itens = await _pendentes_por_vencimento(client, de=h, ate=fim)
+            return fmt.consulta_contas(itens, "em aberto para esta semana")
+        if tipo == "proximos" and spec.get("dias"):
+            n = min(90, max(1, int(spec["dias"]))); h = hoje_sp()
+            itens = await _pendentes_por_vencimento(client, de=h, ate=h + timedelta(days=n))
+            return fmt.consulta_contas(itens, f"em aberto nos próximos {n} dias")
+        if tipo == "pagas":
+            r = await _buscar_cp(client, {"status": "pago", "orderBy": "dataPagamento",
+                                          "order": "desc", "limit": 10})
+            return fmt.consulta_contas(r["itens"], "pagas (mais recentes)", r["total"])
+        # em_aberto e proximos sem N → próximas a vencer (pendentes), ordenadas por vencimento
+        r = await _buscar_cp(client, {"status": "pendente", "orderBy": "dataVencimento",
+                                      "order": "asc", "limit": 10})
+        return fmt.consulta_contas(r["itens"], "em aberto (próximas a vencer)", r["total"])
+    except FinanceAPIError as e:
+        return friendly(e)
+
+
+async def _maybe_consulta_financeira(m: Message, client, texto: str) -> bool:
+    """Roteia perguntas sobre contas a pagar REAIS para a API (read-only). True se tratou."""
+    spec = _classificar_consulta_financeira(texto)
+    if not spec:
+        return False
+    log_event("consulta_financeira", tipo=spec.get("tipo"))
+    await m.answer(await _executar_consulta(client, spec))
+    return True
 
 
 def _parece_resposta_curta(texto: str) -> bool:
@@ -512,8 +708,16 @@ async def _tratar_parse(m: Message, store, client, parsed: dict) -> None:
             store.expire_old()
             await m.answer(fmt.lista_pendencias(store.list_active(m.from_user.id))); return
         if intent == "consulta":
-            await m.answer((reply + "\n\n" if reply else "") +
-                           "Para dados, use /resumo, /hoje, /vencidas, /criticas, /painel."); return
+            # Consulta a contas a pagar REAIS (read-only). Usa consultaTipo da LLM; se
+            # ausente, cai no classificador determinístico; default em_aberto.
+            fields = parsed.get("fields") or {}
+            tipo = fields.get("consultaTipo")
+            if tipo:
+                spec = {"tipo": tipo, "dias": fields.get("dias"),
+                        "fornecedor": fields.get("nomeFornecedor"), "contaId": fields.get("contaId")}
+            else:
+                spec = _classificar_consulta_financeira(m.text or "") or {"tipo": "em_aberto"}
+            await m.answer(await _executar_consulta(client, spec)); return
         await m.answer(reply or "Certo!"); return
 
     # Não é escrita conhecida → conversa/ajuda.
